@@ -184,3 +184,7 @@ coverage/
 
 # Editor temp files
 ~$*
+
+# Configuration file
+**/config.yaml
+**/config_*
