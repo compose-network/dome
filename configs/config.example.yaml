@@ -1,7 +1,7 @@
 l2:
   chain-configs:
     rollup-a:
-      # Private key (without 0x prefix) for a funded account
+      # Private key (with or without 0x prefix) for a funded account
       pk: 0000000000000000000000000000000000000000000000000000000000000000
       # Chain ID
       id: 77777
@@ -9,7 +9,7 @@ l2:
       rpc-url: http://localhost:18545
 
     rollup-b:
-      # Private key (without 0x prefix) for a funded account
+       # Private key (with or without 0x prefix) for a funded account
       pk: 0000000000000000000000000000000000000000000000000000000000000000
       # Chain ID
       id: 88888

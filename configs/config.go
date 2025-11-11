@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compose-network/dome/internal/logger"
 	"github.com/ethereum/go-ethereum/common"
@@ -116,10 +117,25 @@ func (a *App) validateContractsConfig() error {
 	return err
 }
 
+// stripHexPrefix removes the '0x' or '0X' prefix from a hex string if present.
+func stripHexPrefix(s string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X")
+}
+
+// normalizePrivateKeys strips '0x' prefix from all private keys in chain configs.
+func (a *App) normalizePrivateKeys() {
+	for name, cfg := range a.L2.ChainConfigs {
+		cfg.PK = stripHexPrefix(cfg.PK)
+		a.L2.ChainConfigs[name] = cfg
+	}
+}
+
 func init() {
 	if err := yaml.Unmarshal(config, &Values); err != nil {
 		panic("Failed to unmarshal config: " + err.Error())
 	}
+	// Normalize private keys by stripping '0x' prefix if present
+	Values.normalizePrivateKeys()
 
 	if err := Values.validate(); err != nil {
 		panic("invalid config: " + err.Error())
