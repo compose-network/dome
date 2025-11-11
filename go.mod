@@ -1,4 +1,4 @@
-module github.com/compose-network/rollup-probe
+module github.com/compose-network/dome
 
 go 1.25
 
