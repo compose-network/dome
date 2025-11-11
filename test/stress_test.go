@@ -18,7 +18,7 @@ import (
 
 const (
 	numOfTxs      = 5
-	numOfAccounts = 5
+	numOfAccounts = 25
 	delay         = 100 * time.Millisecond
 )
 
@@ -26,14 +26,18 @@ func TestStressBridgeSameAccount(t *testing.T) {
 	ctx := t.Context()
 
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
-	transferedAmount := big.NewInt(500000000000000000)                                // 0.5 tokens
-	mintedAmount := transferedAmount.Mul(transferedAmount, big.NewInt(numOfAccounts)) // enough to send all txs
+	transferedAmount := big.NewInt(500000000000000000)                       // 0.5 tokens
+	mintedAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs)) // enough to send all txs
 
 	// mint tokens for sender account
 	tx, hash, err := helpers.SendMintTx(t, TestAccountA, mintedAmount, TokenABI)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.NotNil(t, hash)
+
+	// TODO: await for receipts
+	logger.Info("Await 12 seconds for minting transaction to be included into block...")
+	time.Sleep(12 * time.Second)
 
 	// get starting nonces for sender account
 	startingNonceA, err := TestAccountA.GetNonce(ctx)
@@ -85,8 +89,12 @@ func TestStressBridgeSameAccount(t *testing.T) {
 	balanceBAfter, err := TestAccountB.GetTokensBalance(ctx, tokenAddress, TokenABI)
 	require.NoError(t, err)
 	require.NotNil(t, balanceBAfter)
-	require.Equal(t, initialBalanceA.Sub(initialBalanceA, transferedAmount.Mul(transferedAmount, big.NewInt(numOfTxs))), balanceAAfter)
-	require.Equal(t, initialBalanceB.Add(initialBalanceB, transferedAmount.Mul(transferedAmount, big.NewInt(numOfTxs))), balanceBAfter)
+
+	expectedSentAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs))
+	expectedBalanceA := new(big.Int).Sub(initialBalanceA, expectedSentAmount)
+	expectedBalanceB := new(big.Int).Add(initialBalanceB, expectedSentAmount)
+	require.Equal(t, expectedBalanceA, balanceAAfter)
+	require.Equal(t, expectedBalanceB, balanceBAfter)
 }
 
 func TestStressBridgeDifferentAccounts(t *testing.T) {
