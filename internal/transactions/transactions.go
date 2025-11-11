@@ -8,9 +8,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/compose-network/rollup-probe/internal/accounts"
-	"github.com/compose-network/rollup-probe/internal/logger"
-	"github.com/compose-network/rollup-probe/internal/rollup"
+	"github.com/compose-network/dome/internal/accounts"
+	"github.com/compose-network/dome/internal/logger"
+	"github.com/compose-network/dome/internal/rollup"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

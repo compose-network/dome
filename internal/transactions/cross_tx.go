@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compose-network/rollup-probe/internal/accounts"
-	"github.com/compose-network/rollup-probe/internal/logger"
-	"github.com/compose-network/rollup-probe/pkg/rollupv1"
+	"github.com/compose-network/dome/internal/accounts"
+	"github.com/compose-network/dome/internal/logger"
+	"github.com/compose-network/dome/pkg/rollupv1"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"google.golang.org/protobuf/proto"

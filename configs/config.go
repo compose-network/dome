@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compose-network/rollup-probe/internal/logger"
+	"github.com/compose-network/dome/internal/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"gopkg.in/yaml.v3"
 )

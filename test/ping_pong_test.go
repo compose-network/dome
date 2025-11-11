@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compose-network/rollup-probe/configs"
-	"github.com/compose-network/rollup-probe/internal/logger"
-	"github.com/compose-network/rollup-probe/internal/transactions"
+	"github.com/compose-network/dome/configs"
+	"github.com/compose-network/dome/internal/logger"
+	"github.com/compose-network/dome/internal/transactions"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/stretchr/testify/assert"

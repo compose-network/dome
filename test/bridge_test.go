@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/compose-network/rollup-probe/configs"
-	"github.com/compose-network/rollup-probe/internal/transactions"
+	"github.com/compose-network/dome/configs"
+	"github.com/compose-network/dome/internal/transactions"
 )
 
 /*

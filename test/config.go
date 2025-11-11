@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compose-network/rollup-probe/configs"
-	"github.com/compose-network/rollup-probe/internal/accounts"
-	"github.com/compose-network/rollup-probe/internal/logger"
-	"github.com/compose-network/rollup-probe/internal/rollup"
+	"github.com/compose-network/dome/configs"
+	"github.com/compose-network/dome/internal/accounts"
+	"github.com/compose-network/dome/internal/logger"
+	"github.com/compose-network/dome/internal/rollup"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 

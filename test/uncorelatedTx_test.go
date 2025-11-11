@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compose-network/rollup-probe/internal/logger"
-	"github.com/compose-network/rollup-probe/internal/transactions"
+	"github.com/compose-network/dome/internal/logger"
+	"github.com/compose-network/dome/internal/transactions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

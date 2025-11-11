@@ -5,15 +5,15 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/compose-network/rollup-probe/internal/logger"
+	"github.com/compose-network/dome/internal/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/compose-network/rollup-probe/configs"
-	"github.com/compose-network/rollup-probe/internal/accounts"
-	"github.com/compose-network/rollup-probe/internal/transactions"
+	"github.com/compose-network/dome/configs"
+	"github.com/compose-network/dome/internal/accounts"
+	"github.com/compose-network/dome/internal/transactions"
 )
 
 /*
