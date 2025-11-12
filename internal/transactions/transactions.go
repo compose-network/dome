@@ -234,7 +234,7 @@ func DistributeEth(ctx context.Context, sponsor *accounts.Account, recipients []
 		}
 		// increment nonce for next transaction
 		nonce++
-		
+
 	}
 	return nil
 }

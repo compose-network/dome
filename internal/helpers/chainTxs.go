@@ -1,14 +1,14 @@
 package helpers
 
 import (
-	"github.com/compose-network/dome/internal/accounts"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/compose-network/dome/internal/transactions"
 	"context"
-	"math/big"
 	"fmt"
+	"github.com/compose-network/dome/internal/accounts"
 	"github.com/compose-network/dome/internal/logger"
+	"github.com/compose-network/dome/internal/transactions"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"math/big"
 )
 
 func SendSelfMoveBalanceTx(ctx context.Context, ac *accounts.Account, amount *big.Int) (*types.Transaction, common.Hash, error) {

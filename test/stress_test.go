@@ -32,7 +32,7 @@ const (
 TestStressBridgeSameAccount will build numOfTxs transactions with the same account and send them to the bridge with delay.
 */
 func TestStressBridgeSameAccount(t *testing.T) {
-	ctx := t.Context()	
+	ctx := t.Context()
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
 
 	transferedAmount := big.NewInt(500000000000000000)                       // 0.5 tokens
