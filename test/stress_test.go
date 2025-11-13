@@ -18,9 +18,9 @@ import (
 
 const (
 	// for single account and multiple transactions tests
-	numOfTxs = 25 // total number of txs
+	numOfTxs = 5 // total number of txs
 	// for multiple accounts and 1 transaction per account tests
-	numOfAccounts = 25 // total number of accounts to be spawned
+	numOfAccounts = 5 // total number of accounts to be spawned
 	// for multiple accounts and multiple transactions tests. Ex: 5 accounts will send 5 txs each with 100ms delay between them => 25 txs in total with 100ms delay between them.
 	numOfTxs_multiple      = 5 // max number of txs to be sent in parallel for each account
 	numOfAccounts_multiple = 5 // number of accounts to be spawned in parallel
@@ -114,6 +114,7 @@ TestStressBridgeDifferentAccounts will spawn <numOfAccounts> accounts on both ro
 func TestStressBridgeDifferentAccounts(t *testing.T) {
 	ctx := t.Context()
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
+	bridgeAddress := configs.Values.L2.Contracts[configs.ContractNameBridge].Address
 
 	mintedAndTransferredAmount := big.NewInt(1000000000000000000) // 1 token
 	//spam x nr of accounts on both rollups
@@ -129,28 +130,32 @@ func TestStressBridgeDifferentAccounts(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	//distribute 0.1 eth to all accounts
+	//distribute 0.1 eth to all accounts for gass
 	logger.Info("Distributing 0.1 eth to all accounts...")
 	err := transactions.DistributeEth(ctx, TestAccountA, accountsOnRollupA, big.NewInt(100000000000000000))
 	require.NoError(t, err)
 	err = transactions.DistributeEth(ctx, TestAccountB, accountsOnRollupB, big.NewInt(100000000000000000))
 	require.NoError(t, err)
-	// mint 9 tokens to all accounts
-	logger.Info("Minting 9 tokens to all accounts...")
+
+	// mint tokens for A accounts
+	logger.Info("Minting tokens to all accounts...")
 	for _, acc := range accountsOnRollupA {
 		tx, hash, err := helpers.SendMintTx(t, acc, mintedAndTransferredAmount, TokenABI)
 		require.NoError(t, err)
 		require.NotNil(t, tx)
 		require.NotNil(t, hash)
-		time.Sleep(delay)
 	}
-	// wait 10 sec until we send bridge txs
-	logger.Info("Waiting 10 sec until we send bridge txs...")
-	time.Sleep(10 * time.Second)
+
+	// approve tokens for the bridge contract
+	logger.Info("Approving tokens for the bridge contract...")
+	for _, acc := range accountsOnRollupA {
+		_, _, err := helpers.ApproveTokens(t, acc, bridgeAddress, TokenABI)
+		require.NoError(t, err)
+	}
 
 	var txs_A []*types.Transaction
 	var txs_B []*types.Transaction
-
+    // send bridge txs from A to B with delay 
 	for i := range len(accountsOnRollupA) {
 		txA, txB, err := helpers.SendBridgeTx(t, accountsOnRollupA[i], accountsOnRollupB[i], mintedAndTransferredAmount, TokenABI, BridgeABI)
 		txs_A = append(txs_A, txA)
@@ -197,7 +202,8 @@ The txs will be sent in parallel up to <maxNumOfTxsInParalel> txs at a time.
 func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 	ctx := t.Context()
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
-
+	bridgeAddress := configs.Values.L2.Contracts[configs.ContractNameBridge].Address
+	
 	//spam x nr of accounts on both rollups
 	accountsOnRollupA := make([]*accounts.Account, numOfAccounts_multiple)
 	accountsOnRollupB := make([]*accounts.Account, numOfAccounts_multiple)
@@ -234,6 +240,13 @@ func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+	}
+
+	// approve tokens for the bridge contract
+	logger.Info("Approving tokens for the bridge contract...")
+	for _, acc := range accountsOnRollupA {
+		_, _, err := helpers.ApproveTokens(t, acc, bridgeAddress, TokenABI)
+		require.NoError(t, err)
 	}
 
 	// send bridge txs

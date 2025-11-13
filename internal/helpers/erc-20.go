@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 	"testing"
+	"fmt"
 
 	"github.com/compose-network/dome/internal/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -44,5 +45,111 @@ func SendMintTx(t *testing.T, ac *accounts.Account, amount *big.Int, tokenABI ab
 	hash, err := transactions.SendTransaction(context.Background(), tx, ac.GetRollup().RPCURL())
 	logger.Info("Mint transaction sent successfully: %s", hash)
 	require.NoError(t, err)
+	_, receipt, err := transactions.GetTransactionDetails(context.Background(), hash, ac.GetRollup())
+	require.NoError(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+	return tx, hash, nil
+}
+
+/*
+	ApproveTokens approves the given amount of tokens to the spender.
+	It is used in normal tests for approving tokens from spawned accounts for the bridge contract.
+*/
+func ApproveTokens(
+	t *testing.T,
+	ac *accounts.Account,
+	spender common.Address,
+	tokenABI abi.ABI,
+) (*types.Transaction, common.Hash, error) {
+	logger.Info("Approving tokens on rollup %s for %s on %s ...", ac.GetRollup().Name(), ac.GetAddress().Hex(), spender.Hex())
+	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
+	// set amount to max uint256 (2^256 - 1)
+	maxUint256 := new(big.Int).Exp(big.NewInt(2), big.NewInt(256), nil)
+	amount := new(big.Int).Sub(maxUint256, big.NewInt(1))
+
+	calldata, err := tokenABI.Pack("approve",
+		spender,
+		amount,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, calldata)
+
+	transactionDetails := transactions.TransactionDetails{
+		To:        tokenAddress,
+		Value:     big.NewInt(0),
+		Gas:       900000,
+		GasTipCap: big.NewInt(1000000000),
+		GasFeeCap: big.NewInt(20000000000),
+		Data:      calldata,
+	}
+
+	tx, signedTransaction, err := transactions.CreateTransaction(context.Background(), transactionDetails, ac)
+	require.NoError(t, err)
+	require.NotNil(t, signedTransaction)
+	hash, err := transactions.SendTransaction(context.Background(), tx, ac.GetRollup().RPCURL())
+	require.NoError(t, err)
+	_, receipt, err := transactions.GetTransactionDetails(context.Background(), hash, ac.GetRollup())
+	require.NoError(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+	logger.Info("Approve transaction executed successfully: %s", hash)
+	return tx, hash, nil
+}
+
+
+/*
+	DefaultApproveTokens approves for the main accounts the maximum amount of tokens to the spender.
+	It is used in config.go without testing context to be sure the main accounts always have the maximum amount of tokens approved.
+*/
+func DefaultApproveTokens(
+	ac *accounts.Account,
+	spender common.Address,
+	tokenABI abi.ABI,
+) (*types.Transaction, common.Hash, error) {
+	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
+	// set amount to max uint256 (2^256 - 1)
+	maxUint256 := new(big.Int).Exp(big.NewInt(2), big.NewInt(256), nil)
+	amount := new(big.Int).Sub(maxUint256, big.NewInt(1))
+
+	calldata, err := tokenABI.Pack("approve",
+		spender,
+		amount,
+	)
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	if calldata == nil {
+		return nil, common.Hash{}, fmt.Errorf("calldata is nil")
+	}
+
+	transactionDetails := transactions.TransactionDetails{
+		To:        tokenAddress,
+		Value:     big.NewInt(0),
+		Gas:       900000,
+		GasTipCap: big.NewInt(1000000000),
+		GasFeeCap: big.NewInt(20000000000),
+		Data:      calldata,
+	}
+
+	tx, signedTransaction, err := transactions.CreateTransaction(context.Background(), transactionDetails, ac)
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	if signedTransaction == nil {
+		return nil, common.Hash{}, fmt.Errorf("signed transaction is nil")
+	}
+	hash, err := transactions.SendTransaction(context.Background(), tx, ac.GetRollup().RPCURL())
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	_, receipt, err := transactions.GetTransactionDetails(context.Background(), hash, ac.GetRollup())
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return nil, common.Hash{}, fmt.Errorf("approve transaction failed")
+	}
+	logger.Info("Approve transaction executed successfully: %s", hash)
 	return tx, hash, err
 }

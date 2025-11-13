@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compose-network/dome/internal/helpers"
 	"github.com/compose-network/dome/configs"
 	"github.com/compose-network/dome/internal/accounts"
 	"github.com/compose-network/dome/internal/logger"
@@ -62,5 +63,15 @@ func setup() {
 	pingPongABI, err = abi.JSON(strings.NewReader(contractConfigs[configs.ContractNamePingPong].ABI))
 	if err != nil {
 		panic("Failed to parse ABI: " + err.Error())
+	}
+
+	// approve tokens for the main accounts
+	_, _, err = helpers.DefaultApproveTokens(TestAccountA, configs.Values.L2.Contracts[configs.ContractNameBridge].Address, TokenABI)
+	if err != nil {
+		panic("Failed to approve tokens for TestAccountA: " + err.Error())
+	}
+	_, _, err = helpers.DefaultApproveTokens(TestAccountB, configs.Values.L2.Contracts[configs.ContractNameBridge].Address, TokenABI)
+	if err != nil {
+		panic("Failed to approve tokens for TestAccountB: " + err.Error())
 	}
 }
