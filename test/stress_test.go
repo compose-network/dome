@@ -18,9 +18,9 @@ import (
 
 const (
 	// for single account and multiple transactions tests
-	numOfTxs = 5 // total number of txs
+	numOfTxs = 25 // total number of txs
 	// for multiple accounts and 1 transaction per account tests
-	numOfAccounts = 5 // total number of accounts to be spawned
+	numOfAccounts = 25 // total number of accounts to be spawned
 	// for multiple accounts and multiple transactions tests. Ex: 5 accounts will send 5 txs each with 100ms delay between them => 25 txs in total with 100ms delay between them.
 	numOfTxs_multiple      = 5 // max number of txs to be sent in parallel for each account
 	numOfAccounts_multiple = 5 // number of accounts to be spawned in parallel
@@ -186,12 +186,12 @@ func TestStressBridgeDifferentAccounts(t *testing.T) {
 	for _, acc := range accountsOnRollupA {
 		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
 		require.NoError(t, err)
-		require.Equal(t, balance, big.NewInt(0)) // on rollup A, all tokens should be sent to rollup B
+		require.Equal(t, 0, balance.Cmp(big.NewInt(0))) // on rollup A, all tokens should be sent to rollup B
 	}
 	for _, acc := range accountsOnRollupB {
 		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
 		require.NoError(t, err)
-		require.Equal(t, balance, mintedAndTransferredAmount) // on rollup B, all tokens should be received from rollup A
+		require.Equal(t, 0, balance.Cmp(mintedAndTransferredAmount)) // on rollup B, all tokens should be received from rollup A
 	}
 }
 
@@ -294,12 +294,12 @@ func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 	for _, acc := range accountsOnRollupA {
 		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
 		require.NoError(t, err)
-		require.Equal(t, balance, big.NewInt(0)) // on rollup A, all tokens should be sent to rollup B
+		require.Equal(t, 0, balance.Cmp(big.NewInt(0))) // on rollup A, all tokens should be sent to rollup B
 	}
 	for _, acc := range accountsOnRollupB {
 		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
 		require.NoError(t, err)
-		require.Equal(t, balance, transferredAmount) // on rollup B, all tokens should be received from rollup A
+		require.Equal(t, 0, balance.Cmp(transferredAmount)) // on rollup B, all tokens should be received from rollup A
 	}
 }
 
