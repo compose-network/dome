@@ -2,9 +2,9 @@ package helpers
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
-	"fmt"
 
 	"github.com/compose-network/dome/internal/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -53,8 +53,8 @@ func SendMintTx(t *testing.T, ac *accounts.Account, amount *big.Int, tokenABI ab
 }
 
 /*
-	ApproveTokens approves the given amount of tokens to the spender.
-	It is used in normal tests for approving tokens from spawned accounts for the bridge contract.
+ApproveTokens approves the given amount of tokens to the spender.
+It is used in normal tests for approving tokens from spawned accounts for the bridge contract.
 */
 func ApproveTokens(
 	t *testing.T,
@@ -97,10 +97,9 @@ func ApproveTokens(
 	return tx, hash, nil
 }
 
-
 /*
-	DefaultApproveTokens approves for the main accounts the maximum amount of tokens to the spender.
-	It is used in config.go without testing context to be sure the main accounts always have the maximum amount of tokens approved.
+DefaultApproveTokens approves for the main accounts the maximum amount of tokens to the spender.
+It is used in config.go without testing context to be sure the main accounts always have the maximum amount of tokens approved.
 */
 func DefaultApproveTokens(
 	ac *accounts.Account,

@@ -155,7 +155,7 @@ func TestStressBridgeDifferentAccounts(t *testing.T) {
 
 	var txs_A []*types.Transaction
 	var txs_B []*types.Transaction
-    // send bridge txs from A to B with delay 
+	// send bridge txs from A to B with delay
 	for i := range len(accountsOnRollupA) {
 		txA, txB, err := helpers.SendBridgeTx(t, accountsOnRollupA[i], accountsOnRollupB[i], mintedAndTransferredAmount, TokenABI, BridgeABI)
 		txs_A = append(txs_A, txA)
@@ -203,7 +203,7 @@ func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 	ctx := t.Context()
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
 	bridgeAddress := configs.Values.L2.Contracts[configs.ContractNameBridge].Address
-	
+
 	//spam x nr of accounts on both rollups
 	accountsOnRollupA := make([]*accounts.Account, numOfAccounts_multiple)
 	accountsOnRollupB := make([]*accounts.Account, numOfAccounts_multiple)

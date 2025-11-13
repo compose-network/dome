@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compose-network/dome/internal/helpers"
 	"github.com/compose-network/dome/configs"
 	"github.com/compose-network/dome/internal/accounts"
+	"github.com/compose-network/dome/internal/helpers"
 	"github.com/compose-network/dome/internal/logger"
 	"github.com/compose-network/dome/internal/rollup"
 	"github.com/ethereum/go-ethereum/accounts/abi"
