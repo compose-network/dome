@@ -1,6 +1,8 @@
-TEST_BINARY := bin/probe
+TEST_BINARY := bin/dome
+DOCKER_IMAGE := dome
+DOCKER_TAG := latest
 
-.PHONY: help build test clean run-example run-simple-example deps ensure-config
+.PHONY: help build test clean run-example run-simple-example deps ensure-config docker-build
 
 # Default target
 help:
@@ -17,6 +19,7 @@ help:
 	@echo "  deps            - Download and tidy dependencies"
 	@echo "  clean           - Clean build artifacts"
 	@echo "  lint            - Run linter"
+	@echo "  docker-build    - Build Docker image (usage: make docker-build [DOCKER_TAG=tag])"
 
 # Ensure config.yaml exists (create from example if needed)
 ensure-config:
@@ -98,3 +101,9 @@ lint: ensure-config
 install-linter:
 	@echo "Installing golangci-lint..."
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.54.2
+
+# Build Docker image
+docker-build:
+	@echo "Building Docker image $(DOCKER_IMAGE):$(DOCKER_TAG)..."
+	docker build -f build/Dockerfile -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@echo "Docker image built successfully: $(DOCKER_IMAGE):$(DOCKER_TAG)"
