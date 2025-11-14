@@ -36,16 +36,24 @@ make test-debug TEST_NAME=TestBridge     # DEBUG log level, specific test
 make test-bridge                         # Run all bridge tests
 make smoke-test                          # Run smoke tests only
 
-# Run the test binary directly
+# Run the test binary directly (with embedded config)
 ./bin/dome -test.v -test.run=TestSendCrossTxBridge
 LOG_LEVEL=INFO ./bin/dome -test.v
+
+# Run with external config file
+CONFIG_PATH=./configs/config.yaml ./bin/dome -test.v
+CONFIG_PATH=/path/to/custom.yaml LOG_LEVEL=DEBUG ./bin/dome -test.v
 ```
 
 Log levels are controlled via the `LOG_LEVEL` environment variable (DEBUG, INFO).
 
 ### Configuration Setup
 
-Configuration is managed through a single embedded YAML file at `configs/config.yaml`. This file is embedded into the binary at compile time using `//go:embed`.
+Configuration supports both embedded and external loading:
+
+**Embedded Config (Default)**: Configuration is embedded at compile time using `//go:embed` from `configs/config.yaml`
+
+**External Config**: Set `CONFIG_PATH` environment variable to load from an external file (ideal for Docker and production)
 
 **Structure:**
 ```yaml
@@ -79,11 +87,18 @@ l2:
    - Chain IDs for each rollup
    - Contract addresses (bridge, token, ping-pong) deployed on both rollups
    - Contract ABIs as JSON strings
-3. Rebuild the binary with `make build` to embed the updated config
+3. Rebuild the binary with `make build` to embed the updated config (for embedded use)
+   - OR set `CONFIG_PATH` environment variable to use external config (recommended for Docker/production)
 
 **Security**: Never commit actual private keys. `config.yaml` is gitignored.
 
 **CI/CD**: The build process automatically creates `config.yaml` from the example file if it doesn't exist, allowing builds to succeed in CI pipelines with placeholder values.
+
+**Config Loading Priority**:
+1. Check `CONFIG_PATH` environment variable
+2. If set, load configuration from that file path
+3. If not set, use embedded config from compile time
+4. Panic if neither source provides valid configuration
 
 **Validation**: Config validation happens at package init time. The binary will panic on startup if:
 - Both `rollup-a` and `rollup-b` configs are not present
@@ -118,12 +133,14 @@ dome/
 
 ### Core Components
 
-**configs/**: Configuration management with compile-time embedding
+**configs/**: Configuration management with hybrid loading (embedded + external)
 - Single YAML file defines both rollup configs with embedded private keys
-- Uses `//go:embed` directive to embed config.yaml into the binary
+- Uses `//go:embed` directive to embed config.yaml into the binary as fallback
+- Supports external config loading via `CONFIG_PATH` environment variable
 - `configs.Values` global variable provides access to parsed config
 - Chain configs accessed via: `configs.Values.L2.ChainConfigs[configs.ChainNameRollupA]`
 - Validation runs at init time, panics on invalid config
+- Loading priority: `CONFIG_PATH` environment variable → embedded config
 
 **internal/accounts/**: Account management for blockchain interactions
 - `Account` struct holds private key, address, rollup reference, and ethclient
@@ -175,10 +192,13 @@ dome/
 
 ## Key Technical Details
 
-### Configuration Embedding
-- Config is embedded at compile time using `//go:embed config.yaml`
-- The binary is self-contained and doesn't need external config files at runtime
-- Rebuild the binary after changing config.yaml to pick up new values
+### Configuration Loading
+- **Embedded Config**: Uses `//go:embed config.yaml` to embed config at compile time for self-contained binaries
+- **External Config**: Set `CONFIG_PATH` environment variable to load from external file at runtime
+- **Hybrid Approach**: Binary checks for `CONFIG_PATH` first, then falls back to embedded config
+- **Use Cases**:
+  - Embedded: CI/CD, testing, quick local runs
+  - External: Docker with volumes, production deployments, config changes without rebuilding
 
 ### Transaction Types
 - All transactions use EIP-1559 dynamic fee structure (`DynamicFeeTx`)
@@ -201,6 +221,7 @@ The project includes a production-ready Dockerfile with:
 - Non-root user (domeuser:domegroup) for security
 - Embedded CA certificates for HTTPS RPC calls
 - Multi-platform support (linux/amd64, linux/arm64)
+- Support for external config via volume mounts
 
 Build the image with:
 ```bash
@@ -208,10 +229,23 @@ make docker-build                          # Build dome:latest
 make docker-build DOCKER_TAG=v1.0.0        # Build with custom tag
 ```
 
-Run tests in container:
+Run tests in container with custom config (recommended):
 ```bash
-docker run --rm dome:latest -test.v -test.run=TestSendCrossTxBridge
-docker run --rm -e LOG_LEVEL=DEBUG dome:latest -test.v
+# Mount config and set CONFIG_PATH
+docker run --rm \
+  -v $(pwd)/configs/config.yaml:/app/config.yaml \
+  -e CONFIG_PATH=/app/config.yaml \
+  dome:latest -test.v -test.run=TestSendCrossTxBridge
+
+# With DEBUG logging
+docker run --rm \
+  -v $(pwd)/configs/config.yaml:/app/config.yaml \
+  -e CONFIG_PATH=/app/config.yaml \
+  -e LOG_LEVEL=DEBUG \
+  dome:latest -test.v
+
+# Use embedded config (placeholder values only)
+docker run --rm dome:latest -test.v
 ```
 
 ## Module Path

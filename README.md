@@ -88,8 +88,13 @@ make stress-test   # Stress tests
 
 Run the binary directly:
 ```bash
+# Use embedded config
 ./bin/dome -test.v -test.run=TestSendCrossTxBridge
 LOG_LEVEL=INFO ./bin/dome -test.v
+
+# Use external config file
+CONFIG_PATH=./configs/config.yaml ./bin/dome -test.v
+CONFIG_PATH=/path/to/custom-config.yaml LOG_LEVEL=DEBUG ./bin/dome -test.v
 ```
 
 ## Project Structure
@@ -126,11 +131,27 @@ dome/
 
 ### Configuration
 
-Configuration uses Go's `//go:embed` directive to embed `configs/config.yaml` at compile time. This makes the binary self-contained and portable.
+Configuration supports both embedded and external loading for maximum flexibility:
 
+**Embedded Config (Default)**:
+- Uses Go's `//go:embed` directive to embed `configs/config.yaml` at compile time
+- Makes the binary self-contained and portable
 - The `make build` target auto-creates `config.yaml` from the example if missing
-- Useful for CI/CD pipelines where config may not exist
+- Useful for CI/CD pipelines and quick testing
 - Rebuild after config changes to embed new values
+
+**External Config (Recommended for Production)**:
+- Set `CONFIG_PATH` environment variable to load config from external file
+- Example: `CONFIG_PATH=/app/config.yaml ./bin/dome -test.v`
+- Ideal for Docker deployments with mounted volumes
+- Allows config changes without rebuilding the binary
+- Falls back to embedded config if external file fails to load
+
+**Loading Priority**:
+1. Check `CONFIG_PATH` environment variable
+2. If set, try to load from that path
+3. If not set or loading fails, use embedded config
+4. Panic if neither source provides valid config
 
 ### Testing
 
@@ -189,18 +210,36 @@ docker build -f build/Dockerfile -t dome:latest .
 
 ### Running Tests
 
+The Docker image embeds placeholder config from `config.example.yaml` by default. To use your actual config, mount it as a volume and set the `CONFIG_PATH` environment variable:
+
 ```bash
-# Run specific test
-docker run --rm dome:latest -test.v -test.run=TestSendCrossTxBridge
+# Run with custom config (recommended for real tests)
+docker run --rm \
+  -v $(pwd)/configs/config.yaml:/app/config.yaml \
+  -e CONFIG_PATH=/app/config.yaml \
+  dome:latest -test.v -test.run=TestSendCrossTxBridge
 
-# Run with DEBUG logging
-docker run --rm -e LOG_LEVEL=DEBUG dome:latest -test.v
+# Run with DEBUG logging and custom config
+docker run --rm \
+  -v $(pwd)/configs/config.yaml:/app/config.yaml \
+  -e CONFIG_PATH=/app/config.yaml \
+  -e LOG_LEVEL=DEBUG \
+  dome:latest -test.v
 
-# Run all tests
+# Run all tests with custom config
+docker run --rm \
+  -v $(pwd)/configs/config.yaml:/app/config.yaml \
+  -e CONFIG_PATH=/app/config.yaml \
+  dome:latest -test.v
+
+# Run with embedded config (placeholder values only)
 docker run --rm dome:latest -test.v
 ```
 
-**Note**: The Docker image uses placeholder config from `config.example.yaml`. For real tests, you'll need to mount your actual config or build a custom image with your config embedded.
+**Config Loading Priority:**
+1. If `CONFIG_PATH` environment variable is set, load from that path
+2. If the external config fails or isn't set, fall back to embedded config
+3. This makes the image work in both development and production scenarios
 
 ## Dependencies
 
