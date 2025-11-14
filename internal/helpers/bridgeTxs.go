@@ -56,7 +56,7 @@ func SendBridgeTx(
 	}
 
 	// create transaction to be sent from accountA
-	txA, signedTransactionA, err := transactions.CreateTransaction(context.Background(), transactionADetails, ac1)
+	txA, signedTransactionA, err := transactions.CreateTransaction(t.Context(), transactionADetails, ac1)
 	require.NoError(t, err)
 	require.NotNil(t, signedTransactionA)
 	// preparations for tx A done -------------------------------------------------------------
@@ -83,18 +83,18 @@ func SendBridgeTx(
 	}
 
 	// create transaction to be sent from accountB
-	txB, signedTransactionB, err := transactions.CreateTransaction(context.Background(), transactionBDetails, ac2)
+	txB, signedTransactionB, err := transactions.CreateTransaction(t.Context(), transactionBDetails, ac2)
 	require.NoError(t, err)
 	require.NotNil(t, signedTransactionB)
 	// preparations for tx B done -------------------------------------------------------------
 
 	// create cross tx request msg
-	crossTxRequestMsg, err := transactions.CreateCrossTxRequestMsg(context.Background(), ac1, ac2, signedTransactionA, signedTransactionB)
+	crossTxRequestMsg, err := transactions.CreateCrossTxRequestMsg(t.Context(), ac1, ac2, signedTransactionA, signedTransactionB)
 	require.NoError(t, err)
 	require.NotNil(t, crossTxRequestMsg)
 
 	// send cross tx request msg to source chain (A)
-	err = transactions.SendCrossTxRequestMsg(context.Background(), ac1.GetRollup().RPCURL(), crossTxRequestMsg)
+	err = transactions.SendCrossTxRequestMsg(t.Context(), ac1.GetRollup().RPCURL(), crossTxRequestMsg)
 	require.NoError(t, err)
 
 	logger.Info("Bridge transaction A sent successfully: %s", txA.Hash())

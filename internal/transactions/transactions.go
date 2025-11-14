@@ -129,7 +129,7 @@ func GenerateRandomSessionID() *big.Int {
 }
 
 // GetTransactionDetails retrieves transaction details from the blockchain using the transaction hash and RPC URL
-// It will wait and retry every 500 milliseconds if the transaction is pending until it's confirmed or fails
+// It will wait and retry every 600 milliseconds if the transaction is pending until it's confirmed or fails
 func GetTransactionDetails(ctx context.Context, txHash common.Hash, rollup *rollup.Rollup) (*types.Transaction, *types.Receipt, error) {
 	// Create Ethereum client
 	client, err := ethclient.DialContext(ctx, rollup.RPCURL())
@@ -146,7 +146,7 @@ func GetTransactionDetails(ctx context.Context, txHash common.Hash, rollup *roll
 	// Retry counter for "not found" errors
 	maxRetries := 10
 	retryCount := 0
-	retryInterval := 500 * time.Millisecond
+	retryInterval := 600 * time.Millisecond
 
 	// Poll for transaction status every 500 milliseconds until confirmed or failed
 	for {
@@ -209,9 +209,9 @@ func DistributeEth(ctx context.Context, sponsor *accounts.Account, recipients []
 		transactionBDetails := TransactionDetails{
 			To:        recipient.GetAddress(),
 			Value:     amount,
-			Gas:       900000,
-			GasTipCap: big.NewInt(1000000000),
-			GasFeeCap: big.NewInt(20000000000),
+			Gas:       25000,
+			GasTipCap: big.NewInt(1000000),
+			GasFeeCap: big.NewInt(2000000),
 			Data:      nil,
 		}
 
@@ -223,9 +223,18 @@ func DistributeEth(ctx context.Context, sponsor *accounts.Account, recipients []
 		if err != nil {
 			return fmt.Errorf("failed to send transaction: %w", err)
 		}
+
+		// check if transaction is successful
+		_, receipt, err := GetTransactionDetails(ctx, tx.Hash(), sponsor.GetRollup())
+		if err != nil {
+			return fmt.Errorf("failed to get transaction receipt: %w", err)
+		}
+		if receipt.Status != types.ReceiptStatusSuccessful {
+			return fmt.Errorf("transaction failed: %s", tx.Hash().Hex())
+		}
+		// increment nonce for next transaction
 		nonce++
-		logger.Info("Waiting 5 sec...")
-		time.Sleep(5 * time.Second)
+
 	}
 	return nil
 }

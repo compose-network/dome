@@ -78,7 +78,7 @@ smoke-test: build
 # Run only smoke tests
 stress-test: build
 	@echo "Running stress tests with INFO log level..."
-	LOG_LEVEL=INFO $(TEST_BINARY) -test.v -test.count=1 -test.run="TestStressBridgeSameAccount|TestStressBridgeDifferentAccounts"
+	LOG_LEVEL=INFO $(TEST_BINARY) -test.v -test.count=1 -test.run="TestStressBridgeSameAccount|TestStressBridgeDifferentAccounts|TestStressMultipleAccountsAndMultipleTxs|TestStressAtoBAndBtoA|TestStressNormalTxsMixWithCrossRollupTxs"
 
 # Download and tidy dependencies
 deps:
