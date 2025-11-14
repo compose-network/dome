@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"math/big"
 	"os"
 	"strings"
@@ -24,7 +25,7 @@ var (
 	pingPongABI  abi.ABI
 )
 
-func setup() {
+func setup(ctx context.Context) {
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "INFO"
@@ -66,11 +67,11 @@ func setup() {
 	}
 
 	// approve tokens for the main accounts
-	_, _, err = helpers.DefaultApproveTokens(TestAccountA, configs.Values.L2.Contracts[configs.ContractNameBridge].Address, TokenABI)
+	_, _, err = helpers.DefaultApproveTokens(context.Background(), TestAccountA, configs.Values.L2.Contracts[configs.ContractNameBridge].Address, TokenABI)
 	if err != nil {
 		panic("Failed to approve tokens for TestAccountA: " + err.Error())
 	}
-	_, _, err = helpers.DefaultApproveTokens(TestAccountB, configs.Values.L2.Contracts[configs.ContractNameBridge].Address, TokenABI)
+	_, _, err = helpers.DefaultApproveTokens(context.Background(), TestAccountB, configs.Values.L2.Contracts[configs.ContractNameBridge].Address, TokenABI)
 	if err != nil {
 		panic("Failed to approve tokens for TestAccountB: " + err.Error())
 	}

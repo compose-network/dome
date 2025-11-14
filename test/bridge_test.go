@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"math/big"
 	"os"
 	"testing"
@@ -19,7 +20,7 @@ It sets up the test environment and runs the tests
 */
 func TestMain(m *testing.M) {
 	// Setup (beforeAll equivalent)
-	setup()
+	setup(context.Background())
 
 	// Run all tests
 	code := m.Run()

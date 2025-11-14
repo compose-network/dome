@@ -39,21 +39,21 @@ func SendMintTx(t *testing.T, ac *accounts.Account, amount *big.Int, tokenABI ab
 		Data:      calldata,
 	}
 
-	tx, signedTransaction, err := transactions.CreateTransaction(context.Background(), transactionDetails, ac)
+	tx, signedTransaction, err := transactions.CreateTransaction(t.Context(), transactionDetails, ac)
 	require.NoError(t, err)
 	require.NotNil(t, signedTransaction)
-	hash, err := transactions.SendTransaction(context.Background(), tx, ac.GetRollup().RPCURL())
+	hash, err := transactions.SendTransaction(t.Context(), tx, ac.GetRollup().RPCURL())
 	logger.Info("Mint transaction sent successfully: %s", hash)
 	require.NoError(t, err)
-	_, receipt, err := transactions.GetTransactionDetails(context.Background(), hash, ac.GetRollup())
+	_, receipt, err := transactions.GetTransactionDetails(t.Context(), hash, ac.GetRollup())
 	require.NoError(t, err)
 	require.NotNil(t, receipt)
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 	return tx, hash, nil
 }
 
 /*
-ApproveTokens approves the given amount of tokens to the spender.
+ApproveTokens approves max uint256 of tokens to the spender.
 It is used in normal tests for approving tokens from spawned accounts for the bridge contract.
 */
 func ApproveTokens(
@@ -84,15 +84,15 @@ func ApproveTokens(
 		Data:      calldata,
 	}
 
-	tx, signedTransaction, err := transactions.CreateTransaction(context.Background(), transactionDetails, ac)
+	tx, signedTransaction, err := transactions.CreateTransaction(t.Context(), transactionDetails, ac)
 	require.NoError(t, err)
 	require.NotNil(t, signedTransaction)
-	hash, err := transactions.SendTransaction(context.Background(), tx, ac.GetRollup().RPCURL())
+	hash, err := transactions.SendTransaction(t.Context(), tx, ac.GetRollup().RPCURL())
 	require.NoError(t, err)
-	_, receipt, err := transactions.GetTransactionDetails(context.Background(), hash, ac.GetRollup())
+	_, receipt, err := transactions.GetTransactionDetails(t.Context(), hash, ac.GetRollup())
 	require.NoError(t, err)
 	require.NotNil(t, receipt)
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 	logger.Info("Approve transaction executed successfully: %s", hash)
 	return tx, hash, nil
 }
@@ -102,6 +102,7 @@ DefaultApproveTokens approves for the main accounts the maximum amount of tokens
 It is used in config.go without testing context to be sure the main accounts always have the maximum amount of tokens approved.
 */
 func DefaultApproveTokens(
+	ctx context.Context,
 	ac *accounts.Account,
 	spender common.Address,
 	tokenABI abi.ABI,
@@ -131,18 +132,18 @@ func DefaultApproveTokens(
 		Data:      calldata,
 	}
 
-	tx, signedTransaction, err := transactions.CreateTransaction(context.Background(), transactionDetails, ac)
+	tx, signedTransaction, err := transactions.CreateTransaction(ctx, transactionDetails, ac)
 	if err != nil {
 		return nil, common.Hash{}, err
 	}
 	if signedTransaction == nil {
 		return nil, common.Hash{}, fmt.Errorf("signed transaction is nil")
 	}
-	hash, err := transactions.SendTransaction(context.Background(), tx, ac.GetRollup().RPCURL())
+	hash, err := transactions.SendTransaction(ctx, tx, ac.GetRollup().RPCURL())
 	if err != nil {
 		return nil, common.Hash{}, err
 	}
-	_, receipt, err := transactions.GetTransactionDetails(context.Background(), hash, ac.GetRollup())
+	_, receipt, err := transactions.GetTransactionDetails(ctx, hash, ac.GetRollup())
 	if err != nil {
 		return nil, common.Hash{}, err
 	}
