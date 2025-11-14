@@ -8,6 +8,7 @@ A Go-based E2E test framework for cross-rollup blockchain transactions. Tests cr
 - **Custom Protocol**: Uses protobuf-based messaging for cross-chain coordination
 - **Embedded Configuration**: Config is embedded at compile time for self-contained binaries
 - **Test Binary**: Compiles tests into a standalone executable for easy distribution
+- **Docker Support**: Production-ready multi-stage Dockerfile for containerized deployments
 
 ## Quick Start
 
@@ -24,7 +25,7 @@ make build
 ```
 
 This will:
-- Create `bin/probe` test binary
+- Create `bin/dome` test binary
 - Auto-generate `configs/config.yaml` from `configs/config.example.yaml` if it doesn't exist
 - Embed the config into the binary
 
@@ -87,15 +88,17 @@ make stress-test   # Stress tests
 
 Run the binary directly:
 ```bash
-./bin/probe -test.v -test.run=TestSendCrossTxBridge
-LOG_LEVEL=INFO ./bin/probe -test.v
+./bin/dome -test.v -test.run=TestSendCrossTxBridge
+LOG_LEVEL=INFO ./bin/dome -test.v
 ```
 
 ## Project Structure
 
 ```
-rollup-probe/
-├── bin/              # Compiled test binary (bin/probe)
+dome/
+├── bin/              # Compiled test binary (bin/dome)
+├── build/            # Build artifacts
+│   └── Dockerfile    # Multi-stage Docker build
 ├── configs/          # Configuration management
 │   ├── config.go                 # Config structs, validation, embed logic
 │   ├── config.yaml               # Main config (gitignored, embedded at compile time)
@@ -131,7 +134,7 @@ Configuration uses Go's `//go:embed` directive to embed `configs/config.yaml` at
 
 ### Testing
 
-Tests are compiled into a binary (`bin/probe`) rather than using `go test` directly. Benefits:
+Tests are compiled into a binary (`bin/dome`) rather than using `go test` directly. Benefits:
 
 - ✅ Distributable without Go toolchain
 - ✅ Faster startup (pre-compiled)
@@ -146,11 +149,58 @@ make test-info      # Run with INFO logging
 make test-debug     # Run with DEBUG logging
 make test-bridge    # Run bridge tests only
 make smoke-test     # Run smoke tests only
+make stress-test    # Run stress tests only
 make format         # Format code
 make lint           # Run linter
 make clean          # Clean build artifacts
 make deps           # Download dependencies
+make docker-build   # Build Docker image
 ```
+
+## Docker Deployment
+
+The project includes a production-ready multi-stage Dockerfile for containerized deployments.
+
+### Features
+
+- **Minimal Image Size**: Based on `scratch` with only the test binary
+- **Security**: Non-root user (domeuser:domegroup)
+- **Multi-Platform**: Supports linux/amd64 and linux/arm64
+- **Self-Contained**: Automatically creates config from example during build
+- **CA Certificates**: Embedded for HTTPS RPC connections
+
+### Building
+
+```bash
+# Build with default tag (dome:latest)
+make docker-build
+
+# Build with custom tag
+make docker-build DOCKER_TAG=v1.0.0
+
+# Build with custom image name
+make docker-build DOCKER_IMAGE=myregistry/dome DOCKER_TAG=dev
+```
+
+Or use Docker directly:
+```bash
+docker build -f build/Dockerfile -t dome:latest .
+```
+
+### Running Tests
+
+```bash
+# Run specific test
+docker run --rm dome:latest -test.v -test.run=TestSendCrossTxBridge
+
+# Run with DEBUG logging
+docker run --rm -e LOG_LEVEL=DEBUG dome:latest -test.v
+
+# Run all tests
+docker run --rm dome:latest -test.v
+```
+
+**Note**: The Docker image uses placeholder config from `config.example.yaml`. For real tests, you'll need to mount your actual config or build a custom image with your config embedded.
 
 ## Dependencies
 

@@ -10,16 +10,17 @@ This is a Go-based E2E test framework for blockchain cross-rollup transactions. 
 
 ### Building and Testing
 ```bash
-make build          # Build test binary (bin/probe)
+make build          # Build test binary (bin/dome)
 make format         # Format code with go fmt
 make lint           # Run golangci-lint
 make deps           # Download and tidy dependencies
 make clean          # Clean build artifacts (removes bin/)
+make docker-build   # Build Docker image (dome:latest)
 ```
 
 ### Running Tests
 
-Tests are compiled into a binary (`bin/probe`) and all test targets automatically build this binary if needed. Tests require configuration in `configs/config.yaml` (see Configuration Setup below).
+Tests are compiled into a binary (`bin/dome`) and all test targets automatically build this binary if needed. Tests require configuration in `configs/config.yaml` (see Configuration Setup below).
 
 ```bash
 # Run all tests (automatically builds binary first)
@@ -36,8 +37,8 @@ make test-bridge                         # Run all bridge tests
 make smoke-test                          # Run smoke tests only
 
 # Run the test binary directly
-./bin/probe -test.v -test.run=TestSendCrossTxBridge
-LOG_LEVEL=INFO ./bin/probe -test.v
+./bin/dome -test.v -test.run=TestSendCrossTxBridge
+LOG_LEVEL=INFO ./bin/dome -test.v
 ```
 
 Log levels are controlled via the `LOG_LEVEL` environment variable (DEBUG, INFO).
@@ -58,6 +59,16 @@ l2:
       pk: 0x...        # Private key for funded account on rollup-b
       id: 88888        # Chain ID for rollup-b
       rpc-url: http://localhost:28545
+  contracts:
+    bridge:
+      address: 0x...   # Bridge contract address (deployed on both rollups)
+      abi: ''          # Bridge contract ABI JSON
+    token:
+      address: 0x...   # Token contract address (deployed on both rollups)
+      abi: ''          # Token contract ABI JSON
+    ping-pong:
+      address: 0x...   # PingPong contract address (deployed on both rollups)
+      abi: ''          # PingPong contract ABI JSON
 ```
 
 **Setup steps:**
@@ -66,6 +77,8 @@ l2:
    - Private keys for funded accounts (one per rollup)
    - RPC URLs for each rollup
    - Chain IDs for each rollup
+   - Contract addresses (bridge, token, ping-pong) deployed on both rollups
+   - Contract ABIs as JSON strings
 3. Rebuild the binary with `make build` to embed the updated config
 
 **Security**: Never commit actual private keys. `config.yaml` is gitignored.
@@ -83,8 +96,10 @@ l2:
 ### Directory Structure
 
 ```
-rollup-probe/
-├── bin/              # Compiled test binary (bin/probe)
+dome/
+├── bin/              # Compiled test binary (bin/dome)
+├── build/            # Build artifacts
+│   └── Dockerfile    # Multi-stage Docker build
 ├── configs/          # Configuration management
 │   ├── config.go     # Config structs, validation, and embed logic
 │   ├── config.yaml   # Main config file (gitignored, embedded at compile time)
@@ -158,12 +173,6 @@ rollup-probe/
 - `stress_test.go`: Load and stress testing
 - `uncorelatedTx_test.go`: Independent transaction tests
 
-### Contract Addresses (Hardcoded in test/config.go)
-
-- Token Contract: `0x47C286E684645f1ec602928707084edB241c57c7`
-- Bridge Contract: `0xF5fe1B951c5cdf2D4299F8e63444Ff621cD2fed9`
-- PingPong Contract: `0x230B73363cfbF081ED3fcd0108e2d5C26fc0d8EC`
-
 ## Key Technical Details
 
 ### Configuration Embedding
@@ -185,8 +194,28 @@ Cross-rollup transactions use a custom protobuf format where each `TransactionRe
 - Standard Ethereum JSON-RPC for single-chain operations
 - Custom `eth_sendXTransaction` for cross-rollup atomic transactions
 
+### Docker Deployment
+The project includes a production-ready Dockerfile with:
+- Multi-stage build for minimal image size (scratch-based final image)
+- Automatic config.yaml creation from example during build
+- Non-root user (domeuser:domegroup) for security
+- Embedded CA certificates for HTTPS RPC calls
+- Multi-platform support (linux/amd64, linux/arm64)
+
+Build the image with:
+```bash
+make docker-build                          # Build dome:latest
+make docker-build DOCKER_TAG=v1.0.0        # Build with custom tag
+```
+
+Run tests in container:
+```bash
+docker run --rm dome:latest -test.v -test.run=TestSendCrossTxBridge
+docker run --rm -e LOG_LEVEL=DEBUG dome:latest -test.v
+```
+
 ## Module Path
-`github.com/compose-network/rollup-probe`
+`github.com/compose-network/dome`
 
 ## Go Version
 1.25
