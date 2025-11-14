@@ -67,7 +67,7 @@ func (ac *Account) GetBalance(ctx context.Context) (*big.Int, error) {
 // GetNonce returns the nonce for the next transaction
 func (ac *Account) GetNonce(ctx context.Context) (uint64, error) {
 	address := ac.GetAddress()
-	nonce, err := ac.client.PendingNonceAt(context.Background(), address)
+	nonce, err := ac.client.PendingNonceAt(ctx, address)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get nonce: %w", err)
 	}
