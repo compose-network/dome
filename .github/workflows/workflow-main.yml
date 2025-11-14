@@ -1,0 +1,42 @@
+name: Main branch workflow
+
+on:
+  push:
+    branches:
+      - main
+
+env:  
+  IMAGE_ARCHITECTURES: linux/amd64,linux/arm64
+
+jobs:
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create a GitHub release
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # v1.20.0
+        with:
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.tag_version.outputs.changelog }}
+
+  docker-build-push:
+    uses: ./.github/workflows/docker.yml
+    permissions:
+      id-token: write
+      packages: write
+      contents: read
+    needs: publish-release
+    with:
+      with-push: true
+      image-tag: ${{ needs.publish-release.outputs.new_tag }}

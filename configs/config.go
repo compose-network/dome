@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/compose-network/dome/internal/logger"
@@ -13,11 +14,13 @@ import (
 
 var (
 	//go:embed config.yaml
-	config []byte
-	Values App
+	embeddedConfig []byte
+	Values         App
 )
 
 const (
+	configPathEnvVar = "CONFIG_PATH"
+
 	ChainNameRollupA ChainName = "rollup-a"
 	ChainNameRollupB ChainName = "rollup-b"
 
@@ -48,6 +51,66 @@ type (
 		ABI     string         `yaml:"abi"`
 	}
 )
+
+func init() {
+	configPath, isSet := os.LookupEnv(configPathEnvVar)
+	if !isSet {
+		logger.Info("%s was not set, will use configuration values from embedded config.yaml", configPathEnvVar)
+		if err := loadConfig(embeddedConfig); err != nil {
+			panic(err.Error())
+		}
+		return
+	}
+
+	logger.Info("%s environment variable set to: %s. Loading configuration", configPathEnvVar, configPath)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		panic(fmt.Errorf("failed to read config file %s: %w", configPath, err))
+	}
+
+	if err := loadConfig(data); err != nil {
+		logger.Info("failed to load external config (%v), falling back to embedded config", err)
+		panic(err.Error())
+	}
+}
+
+func loadConfig(data []byte) error {
+	if err := yaml.Unmarshal(data, &Values); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	Values.normalizePrivateKeys()
+
+	if err := Values.validate(); err != nil {
+		return fmt.Errorf("invalid config: %w", err)
+	}
+
+	// Get ABI lengths for logging
+	bridgeABILen := len(Values.L2.Contracts[ContractNameBridge].ABI)
+	tokenABILen := len(Values.L2.Contracts[ContractNameToken].ABI)
+	pingPongABILen := len(Values.L2.Contracts[ContractNamePingPong].ABI)
+
+	logger.
+		Info(`configuration loaded successfully.
+			RollupA_ID: %d,
+			RollupA_RPC: %s
+			RollupB_ID: %d,
+			RollupB_RPC: %s
+			Bridge_Address: %s (ABI: %d bytes)
+			Token_Address: %s (ABI: %d bytes)
+			PingPong_Address: %s (ABI: %d bytes)`,
+			Values.L2.ChainConfigs[ChainNameRollupA].ID,
+			Values.L2.ChainConfigs[ChainNameRollupA].RPCURL,
+			Values.L2.ChainConfigs[ChainNameRollupB].ID,
+			Values.L2.ChainConfigs[ChainNameRollupB].RPCURL,
+			Values.L2.Contracts[ContractNameBridge].Address.Hex(),
+			bridgeABILen,
+			Values.L2.Contracts[ContractNameToken].Address.Hex(),
+			tokenABILen,
+			Values.L2.Contracts[ContractNamePingPong].Address.Hex(),
+			pingPongABILen)
+	return nil
+}
 
 func (a *App) validate() error {
 	var err error
@@ -117,29 +180,13 @@ func (a *App) validateContractsConfig() error {
 	return err
 }
 
-// stripHexPrefix removes the '0x' or '0X' prefix from a hex string if present.
 func stripHexPrefix(s string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X")
 }
 
-// normalizePrivateKeys strips '0x' prefix from all private keys in chain configs.
 func (a *App) normalizePrivateKeys() {
 	for name, cfg := range a.L2.ChainConfigs {
 		cfg.PK = stripHexPrefix(cfg.PK)
 		a.L2.ChainConfigs[name] = cfg
 	}
-}
-
-func init() {
-	if err := yaml.Unmarshal(config, &Values); err != nil {
-		panic("Failed to unmarshal config: " + err.Error())
-	}
-	// Normalize private keys by stripping '0x' prefix if present
-	Values.normalizePrivateKeys()
-
-	if err := Values.validate(); err != nil {
-		panic("invalid config: " + err.Error())
-	}
-
-	logger.Info("configuration was loaded successfully: %v", Values)
 }
