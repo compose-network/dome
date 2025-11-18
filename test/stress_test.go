@@ -499,6 +499,6 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 	balanceBAfter, err := TestAccountB.GetTokensBalance(ctx, tokenAddress, TokenABI)
 	require.NoError(t, err)
 	require.NotNil(t, balanceBAfter)
-	require.Equal(t, new(big.Int).Sub(initialBalanceA, transferedAmount), balanceAAfter)
-	require.Equal(t, new(big.Int).Add(initialBalanceB, transferedAmount), balanceBAfter)
+	require.Equal(t, new(big.Int).Sub(initialBalanceA, mintedAmount), balanceAAfter)
+	require.Equal(t, new(big.Int).Add(initialBalanceB, mintedAmount), balanceBAfter)
 }
