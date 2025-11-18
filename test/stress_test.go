@@ -442,7 +442,8 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 
 	// send self move balance tx and bridge tx alternatively with increasing nonce and with delay between them
 	var txs_selfMoveBalance []*types.Transaction
-	var txs_bridgeTx []*types.Transaction
+	var txs_bridgeTxA []*types.Transaction
+	var txs_bridgeTxB []*types.Transaction
 
 	selfMoveBalanceAmount := big.NewInt(100000000000000000) // 0.1 eth
 	for i := 0; i < numOfTxs; i++ {
@@ -465,8 +466,8 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, txA)
 		require.NotNil(t, txB)
-		txs_bridgeTx = append(txs_bridgeTx, txA)
-		txs_bridgeTx = append(txs_bridgeTx, txB)
+		txs_bridgeTxA = append(txs_bridgeTxA, txA)
+		txs_bridgeTxB = append(txs_bridgeTxB, txB)
 		time.Sleep(delay)
 	}
 
@@ -479,7 +480,13 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 		require.NotNil(t, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
 	}
-	for _, tx := range txs_bridgeTx {
+	for _, tx := range txs_bridgeTxA {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+	for _, tx := range txs_bridgeTxB {
 		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
 		require.NoError(t, err)
 		require.NotNil(t, receipt)
