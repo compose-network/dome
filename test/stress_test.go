@@ -329,9 +329,12 @@ func TestStressAtoBAndBtoA(t *testing.T) {
 	nonceB, err := TestAccountB.GetNonce(ctx)
 	require.NoError(t, err)
 
-	// send bridge txs from A to B and B to A with increasing nonce
-	var txs_AtoB []*types.Transaction
-	var txs_BtoA []*types.Transaction
+	// send bridge txs from A to B and B to A with increasing nonce.
+	// Track legs per rollup so we query the correct chain later.
+	var txs_AtoB_A []*types.Transaction
+	var txs_AtoB_B []*types.Transaction
+	var txs_BtoA_A []*types.Transaction
+	var txs_BtoA_B []*types.Transaction
 
 	// totalNumOfTxs is half of numOfTxs, rounded down (e.g., 25 -> 12)
 	totalNumOfTxs := numOfTxs / 2
@@ -347,8 +350,8 @@ func TestStressAtoBAndBtoA(t *testing.T) {
 
 		// Bridge from A to B
 		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, aNonceAtoB, TestAccountB, bNonceAtoB, mintedAndTransferredAmount, TokenABI, BridgeABI)
-		txs_AtoB = append(txs_AtoB, txA)
-		txs_AtoB = append(txs_AtoB, txB)
+		txs_AtoB_A = append(txs_AtoB_A, txA)
+		txs_AtoB_B = append(txs_AtoB_B, txB)
 		require.NoError(t, err)
 		require.NotNil(t, txA)
 		require.NotNil(t, txB)
@@ -356,8 +359,8 @@ func TestStressAtoBAndBtoA(t *testing.T) {
 
 		// Bridge from B back to A
 		txB, txA, err = helpers.SendBridgeTxWithNonce(t, TestAccountB, bNonceBtoA, TestAccountA, aNonceBtoA, mintedAndTransferredAmount, TokenABI, BridgeABI)
-		txs_BtoA = append(txs_BtoA, txB)
-		txs_BtoA = append(txs_BtoA, txA)
+		txs_BtoA_B = append(txs_BtoA_B, txB)
+		txs_BtoA_A = append(txs_BtoA_A, txA)
 		require.NoError(t, err)
 		require.NotNil(t, txA)
 		require.NotNil(t, txB)
@@ -367,13 +370,28 @@ func TestStressAtoBAndBtoA(t *testing.T) {
 	// wait 30s until we check the txs
 	logger.Info("Waiting 30s until we check the txs...")
 	time.Sleep(30 * time.Second)
-	for _, tx := range txs_AtoB {
+	// A→B legs
+	for _, tx := range txs_AtoB_A {
 		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
 		require.NoError(t, err)
 		require.NotNil(t, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
 	}
-	for _, tx := range txs_BtoA {
+	for _, tx := range txs_AtoB_B {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+
+	// B→A legs
+	for _, tx := range txs_BtoA_A {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+	for _, tx := range txs_BtoA_B {
 		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
 		require.NoError(t, err)
 		require.NotNil(t, receipt)
