@@ -296,7 +296,8 @@ func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 	for _, acc := range accountsOnRollupB {
 		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
 		require.NoError(t, err)
-		require.Equal(t, 0, balance.Cmp(transferredAmount)) // on rollup B, all tokens should be received from rollup A
+		expected := new(big.Int).Mul(transferredAmount, big.NewInt(numOfTxsForMultipleAccounts))
+		require.Equal(t, 0, balance.Cmp(expected)) // on rollup B, all tokens sent from A should be received
 	}
 }
 
