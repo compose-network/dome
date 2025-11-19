@@ -59,7 +59,7 @@ func TestStressBridgeSameAccount(t *testing.T) {
 	var txs_A []*types.Transaction
 	var txs_B []*types.Transaction
 
-	for i := range numOfTxs {
+	for i := 0; i < numOfTxs; i++ {
 		logger.Info("Creating set of txs with nonce %d and %d", startingNonceA+uint64(i), startingNonceB+uint64(i))
 		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, startingNonceA+uint64(i), TestAccountB, startingNonceB+uint64(i), transferedAmount, TokenABI, BridgeABI)
 		txs_A = append(txs_A, txA)
@@ -114,7 +114,7 @@ func TestStressBridgeDifferentAccounts(t *testing.T) {
 	//spam x nr of accounts on both rollups
 	accountsOnRollupA := make([]*accounts.Account, numOfAccounts)
 	accountsOnRollupB := make([]*accounts.Account, numOfAccounts)
-	for i := range numOfAccounts {
+	for i := 0; i < numOfAccounts; i++ {
 		pk, err := crypto.GenerateKey()
 		require.NoError(t, err)
 		pkHex := hex.EncodeToString(crypto.FromECDSA(pk))
@@ -241,7 +241,7 @@ func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 	// nonces
 	var noncesA []uint64
 	var noncesB []uint64
-	for i := range accountsOnRollupA {
+	for i := 0; i < numOfAccountsForMultipleTxs; i++ {
 		// get nonce for both accounts
 		nonceA, err := accountsOnRollupA[i].GetNonce(ctx)
 		noncesA = append(noncesA, nonceA)
@@ -258,7 +258,7 @@ func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 	// for each account on A
 	for i := range accountsOnRollupA {
 		// for each tx to be sent
-		for j := range numOfTxsForMultipleAccounts {
+		for j := 0; j < numOfTxsForMultipleAccounts; j++ {
 			// build bridge txs with different nonces
 			txA, txB, err := helpers.SendBridgeTxWithNonce(t, accountsOnRollupA[i], noncesA[i]+uint64(j), accountsOnRollupB[i], noncesB[i]+uint64(j), transferredAmount, TokenABI, BridgeABI)
 			require.NoError(t, err)
@@ -296,7 +296,8 @@ func TestStressMultipleAccountsAndMultipleTxs(t *testing.T) {
 	for _, acc := range accountsOnRollupB {
 		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
 		require.NoError(t, err)
-		require.Equal(t, 0, balance.Cmp(transferredAmount)) // on rollup B, all tokens should be received from rollup A
+		expected := new(big.Int).Mul(transferredAmount, big.NewInt(numOfTxsForMultipleAccounts))
+		require.Equal(t, 0, balance.Cmp(expected)) // on rollup B, all tokens sent from A should be received
 	}
 }
 
@@ -329,24 +330,38 @@ func TestStressAtoBAndBtoA(t *testing.T) {
 	nonceB, err := TestAccountB.GetNonce(ctx)
 	require.NoError(t, err)
 
-	// send bridge txs from A to B and B to A with increasing nonce
-	var txs_AtoB []*types.Transaction
-	var txs_BtoA []*types.Transaction
+	// send bridge txs from A to B and B to A with increasing nonce.
+	// Track legs per rollup so we query the correct chain later.
+	var txs_AtoB_A []*types.Transaction
+	var txs_AtoB_B []*types.Transaction
+	var txs_BtoA_A []*types.Transaction
+	var txs_BtoA_B []*types.Transaction
 
 	// totalNumOfTxs is half of numOfTxs, rounded down (e.g., 25 -> 12)
 	totalNumOfTxs := numOfTxs / 2
-	for i := range totalNumOfTxs {
-		j := i + 1
-		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, nonceA+uint64(i), TestAccountB, nonceB+uint64(i), transferredAmount, TokenABI, BridgeABI)
-		txs_AtoB = append(txs_AtoB, txA)
-		txs_AtoB = append(txs_AtoB, txB)
+	for i := 0; i < totalNumOfTxs; i++ {
+		// Interleave nonces per chain so we never reuse the same nonce
+		// for different bridge directions on the same account:
+		// - A nonces: nonceA + 2*i      (A->B) and nonceA + 2*i+1      (B->A leg)
+		// - B nonces: nonceB + 2*i      (A->B leg) and nonceB + 2*i+1  (B->A)
+		aNonceAtoB := nonceA + uint64(2*i)
+		bNonceAtoB := nonceB + uint64(2*i)
+		bNonceBtoA := nonceB + uint64(2*i+1)
+		aNonceBtoA := nonceA + uint64(2*i+1)
+
+		// Bridge from A to B
+		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, aNonceAtoB, TestAccountB, bNonceAtoB, mintedAndTransferredAmount, TokenABI, BridgeABI)
+		txs_AtoB_A = append(txs_AtoB_A, txA)
+		txs_AtoB_B = append(txs_AtoB_B, txB)
 		require.NoError(t, err)
 		require.NotNil(t, txA)
 		require.NotNil(t, txB)
 		time.Sleep(delay)
-		txB, txA, err = helpers.SendBridgeTxWithNonce(t, TestAccountB, nonceB+uint64(j), TestAccountA, nonceA+uint64(j), transferredAmount, TokenABI, BridgeABI)
-		txs_BtoA = append(txs_BtoA, txB)
-		txs_BtoA = append(txs_BtoA, txA)
+
+		// Bridge from B back to A
+		txB, txA, err = helpers.SendBridgeTxWithNonce(t, TestAccountB, bNonceBtoA, TestAccountA, aNonceBtoA, mintedAndTransferredAmount, TokenABI, BridgeABI)
+		txs_BtoA_B = append(txs_BtoA_B, txB)
+		txs_BtoA_A = append(txs_BtoA_A, txA)
 		require.NoError(t, err)
 		require.NotNil(t, txA)
 		require.NotNil(t, txB)
@@ -356,13 +371,28 @@ func TestStressAtoBAndBtoA(t *testing.T) {
 	// wait 30s until we check the txs
 	logger.Info("Waiting 30s until we check the txs...")
 	time.Sleep(30 * time.Second)
-	for _, tx := range txs_AtoB {
+	// A→B legs
+	for _, tx := range txs_AtoB_A {
 		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
 		require.NoError(t, err)
 		require.NotNil(t, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
 	}
-	for _, tx := range txs_BtoA {
+	for _, tx := range txs_AtoB_B {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+
+	// B→A legs
+	for _, tx := range txs_BtoA_A {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+	for _, tx := range txs_BtoA_B {
 		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
 		require.NoError(t, err)
 		require.NotNil(t, receipt)
@@ -413,23 +443,32 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 
 	// send self move balance tx and bridge tx alternatively with increasing nonce and with delay between them
 	var txs_selfMoveBalance []*types.Transaction
-	var txs_bridgeTx []*types.Transaction
+	var txs_bridgeTxA []*types.Transaction
+	var txs_bridgeTxB []*types.Transaction
 
 	selfMoveBalanceAmount := big.NewInt(100000000000000000) // 0.1 eth
-	for i := range numOfTxs {
-		j := i + 1
-		tx, hash, err := helpers.SendSelfMoveBalanceTxWithNonce(ctx, TestAccountA, nonceA+uint64(i), selfMoveBalanceAmount)
+	for i := 0; i < numOfTxs; i++ {
+		// Interleave nonces so we never replace a bridge tx with a self-move tx:
+		// self-move uses even offsets, bridge uses odd offsets.
+		selfNonceA := nonceA + uint64(2*i)
+		bridgeNonceA := nonceA + uint64(2*i+1)
+		bridgeNonceB := nonceB + uint64(i)
+
+		// Self-move balance tx on rollup A
+		tx, hash, err := helpers.SendSelfMoveBalanceTxWithNonce(ctx, TestAccountA, selfNonceA, selfMoveBalanceAmount)
 		require.NoError(t, err)
 		require.NotNil(t, tx)
 		require.NotNil(t, hash)
 		txs_selfMoveBalance = append(txs_selfMoveBalance, tx)
 		time.Sleep(delay)
-		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, nonceA+uint64(j), TestAccountB, nonceB+uint64(j), transferredAmount, TokenABI, BridgeABI)
+
+		// Cross-rollup bridge tx (A -> B)
+		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, bridgeNonceA, TestAccountB, bridgeNonceB, transferedAmount, TokenABI, BridgeABI)
 		require.NoError(t, err)
 		require.NotNil(t, txA)
 		require.NotNil(t, txB)
-		txs_bridgeTx = append(txs_bridgeTx, txA)
-		txs_bridgeTx = append(txs_bridgeTx, txB)
+		txs_bridgeTxA = append(txs_bridgeTxA, txA)
+		txs_bridgeTxB = append(txs_bridgeTxB, txB)
 		time.Sleep(delay)
 	}
 
@@ -442,7 +481,13 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 		require.NotNil(t, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
 	}
-	for _, tx := range txs_bridgeTx {
+	for _, tx := range txs_bridgeTxA {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+	for _, tx := range txs_bridgeTxB {
 		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
 		require.NoError(t, err)
 		require.NotNil(t, receipt)
@@ -455,6 +500,6 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 	balanceBAfter, err := TestAccountB.GetTokensBalance(ctx, tokenAddress, TokenABI)
 	require.NoError(t, err)
 	require.NotNil(t, balanceBAfter)
-	require.Equal(t, new(big.Int).Sub(initialBalanceA, transferedAmount), balanceAAfter)
-	require.Equal(t, new(big.Int).Add(initialBalanceB, transferedAmount), balanceBAfter)
+	require.Equal(t, new(big.Int).Sub(initialBalanceA, mintedAmount), balanceAAfter)
+	require.Equal(t, new(big.Int).Add(initialBalanceB, mintedAmount), balanceBAfter)
 }
