@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/compose-network/dome/internal/accounts"
-	"github.com/compose-network/dome/internal/logger"
 	"github.com/compose-network/dome/internal/transactions"
+	"github.com/compose-network/dome/internal/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -80,6 +80,41 @@ func CreateSmartAccount(ctx context.Context, ac *accounts.Account, data *InitDat
 		return nil, fmt.Errorf("failed to pack createAccount function: %w", err)
 	}
 
+	// Connect to RPC
+	client, err := ethclient.DialContext(ctx, ac.GetRollup().RPCURL())
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to RPC: %w", err)
+	}
+	defer client.Close()
+
+	// Verify the factory contract exists and has code
+	factoryCode, err := client.CodeAt(ctx, factoryAddress, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check factory contract code: %w", err)
+	}
+	if len(factoryCode) == 0 {
+		return nil, fmt.Errorf("factory contract has no code at address %s - contract may not be deployed", factoryAddress.Hex())
+	}
+
+	// Check if account already exists by calling getAddress
+	var predictedAddress common.Address
+	contract := bind.NewBoundContract(factoryAddress, kernelABI, client, client, client)
+	callOpts := &bind.CallOpts{Context: ctx}
+	err = contract.Call(callOpts, &[]interface{}{&predictedAddress}, "getAddress", initCalldata, salt32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call getAddress: %w", err)
+	}
+	logger.Info("Predicted smart account address: %s", predictedAddress.Hex())
+
+	// Check if the account already exists (has code)
+	code, err := client.CodeAt(ctx, predictedAddress, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if account exists: %w", err)
+	}
+	if len(code) > 0 {
+		return &SmartAccount{address: predictedAddress}, nil
+	}
+
 	// Create transaction
 	transactionDetails := transactions.TransactionDetails{
 		To:        factoryAddress,
@@ -100,7 +135,6 @@ func CreateSmartAccount(ctx context.Context, ac *accounts.Account, data *InitDat
 	if err != nil {
 		return nil, fmt.Errorf("failed to send transaction: %w", err)
 	}
-	logger.Info("CreateAccount transaction sent: %s", hash.Hex())
 
 	// Wait for transaction receipt
 	_, receipt, err := transactions.GetTransactionDetails(ctx, hash, ac.GetRollup())
@@ -112,31 +146,5 @@ func CreateSmartAccount(ctx context.Context, ac *accounts.Account, data *InitDat
 		return nil, fmt.Errorf("createAccount transaction failed with status: %d", receipt.Status)
 	}
 
-	// Decode the return value from the transaction
-	// Since createAccount returns an address, we need to decode it from the transaction output
-	// The return value is in the transaction's return data, but for state-changing functions,
-	// we typically need to use a call or parse logs. However, we can use getAddress to verify.
-	// For now, let's decode from the receipt or use getAddress to predict it.
-
-	// Use getAddress to get the predicted address (since it's deterministic)
-	var predictedAddress common.Address
-
-	// Create a bound contract to call getAddress
-	client, err := ethclient.DialContext(ctx, ac.GetRollup().RPCURL())
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RPC: %w", err)
-	}
-	defer client.Close()
-
-	contract := bind.NewBoundContract(factoryAddress, kernelABI, client, client, client)
-	callOpts := &bind.CallOpts{Context: ctx}
-	err = contract.Call(callOpts, &[]interface{}{&predictedAddress}, "getAddress", initCalldata, salt32)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call getAddress: %w", err)
-	}
-
-	logger.Info("Smart account created at address: %s", predictedAddress.Hex())
-
 	return &SmartAccount{address: predictedAddress}, nil
 }
-
