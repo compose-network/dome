@@ -503,3 +503,359 @@ func TestStressNormalTxsMixWithCrossRollupTxs(t *testing.T) {
 	require.Equal(t, new(big.Int).Sub(initialBalanceA, mintedAmount), balanceAAfter)
 	require.Equal(t, new(big.Int).Add(initialBalanceB, mintedAmount), balanceBAfter)
 }
+
+/*
+TestStressWithWrongNonce will send a total of numOfTxs from same account and half of them with the wrong nonce.
+It will then check if the txs with the wrong nonce are not processed and the txs with the correct nonce are processed.
+It will also check if the balances are correct.
+*/
+func TestStressFromSameAccountHalfWrongNonce(t *testing.T) {
+	ctx := t.Context()
+	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
+	
+	transferedAmount := big.NewInt(500000000000000000)                       // 0.5 tokens
+	mintedAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs)) // enough to send all txs
+
+	// mint tokens for sender account
+	tx, hash, err := helpers.SendMintTx(t, TestAccountA, mintedAmount, TokenABI)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+	require.NotNil(t, hash)
+
+	// get starting nonces for sender account
+	startingNonceA, err := TestAccountA.GetNonce(ctx)
+	require.NoError(t, err)
+	startingNonceB, err := TestAccountB.GetNonce(ctx)
+	require.NoError(t, err)
+
+	// get initial balances
+	initialBalanceA, err := TestAccountA.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+	initialBalanceB, err := TestAccountB.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+
+	var txs_A []*types.Transaction
+	var txs_B []*types.Transaction
+	var txs_wrongNonceA []*types.Transaction
+	var txs_wrongNonceB []*types.Transaction
+
+	// we use numOfTxs/2 because we send half of the txs with the wrong nonce and half with the correct nonce. Total number of txs will still be numOfTxs.
+	for i := 0; i < numOfTxs/2; i++ {
+		logger.Info("Creating set of txs with nonce %d and %d", startingNonceA+uint64(i), startingNonceB+uint64(i))
+		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, startingNonceA+uint64(i), TestAccountB, startingNonceB+uint64(i), transferedAmount, TokenABI, BridgeABI)
+		txs_A = append(txs_A, txA)
+		txs_B = append(txs_B, txB)
+		require.NoError(t, err)
+		require.NotNil(t, txA)
+		require.NotNil(t, txB)
+		txWrongNonceA, txWrongNonceB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, startingNonceA+uint64(i)-1, TestAccountB, startingNonceB+uint64(i)-1, transferedAmount, TokenABI, BridgeABI)
+		txs_wrongNonceA = append(txs_wrongNonceA, txWrongNonceA)
+		txs_wrongNonceB = append(txs_wrongNonceB, txWrongNonceB)
+		require.NoError(t, err)
+		require.NotNil(t, txWrongNonceA)
+		require.NotNil(t, txWrongNonceB)
+		time.Sleep(delay)
+	}
+
+	// check the txs
+	logger.Info("Waiting 30s until we check the txs...")
+	time.Sleep(30 * time.Second)
+	for _, tx := range txs_A {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+
+	}
+	for _, tx := range txs_B {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+	}
+	// txs with wrong nonce should not be processed
+	for _, tx := range txs_wrongNonceA {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.Nil(t, receipt)
+		require.Error(t, err)
+	}
+	for _, tx := range txs_wrongNonceB {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.Nil(t, receipt)
+		require.Error(t, err)
+	}
+
+	// check balances after txs
+	balanceAAfter, err := TestAccountA.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+	require.NotNil(t, balanceAAfter)
+	balanceBAfter, err := TestAccountB.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+	require.NotNil(t, balanceBAfter)
+	// we use here again numOfTxs/2 because we sent only half of the txs with the correct nonce.
+	expectedSentAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs/2))
+	expectedBalanceA := new(big.Int).Sub(initialBalanceA, expectedSentAmount)
+	expectedBalanceB := new(big.Int).Add(initialBalanceB, expectedSentAmount)
+	require.Equal(t, expectedBalanceA, balanceAAfter)
+	require.Equal(t, expectedBalanceB, balanceBAfter)
+}
+
+/*
+TestStressFromSameAccountHalfOutOfGas will send a total of numOfTxs from same account and half of them with out of gas error.
+It will then check if the txs with the wrong nonce are not processed and the txs with the correct nonce are processed.
+It will also check if the balances are correct.
+*/
+func TestStressFromSameAccountHalfOutOfGas(t *testing.T) {
+	ctx := t.Context()
+	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
+	
+	transferedAmount := big.NewInt(500000000000000000)                       // 0.5 tokens
+	mintedAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs)) // enough to send all txs
+
+	// mint tokens for sender account
+	tx, hash, err := helpers.SendMintTx(t, TestAccountA, mintedAmount, TokenABI)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+	require.NotNil(t, hash)
+
+	// get starting nonces for sender account
+	startingNonceA, err := TestAccountA.GetNonce(ctx)
+	require.NoError(t, err)
+	startingNonceB, err := TestAccountB.GetNonce(ctx)
+	require.NoError(t, err)
+
+	// get initial balances
+	initialBalanceA, err := TestAccountA.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+	initialBalanceB, err := TestAccountB.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+
+	var txs_A []*types.Transaction
+	var txs_B []*types.Transaction
+	var txs_OutOfGasA []*types.Transaction
+	var txs_OutOfGasB []*types.Transaction
+
+	// we use numOfTxs/2 because we send half of the txs with the wrong nonce and half with the correct nonce. Total number of txs will still be numOfTxs.
+	for i := 0; i < numOfTxs/2; i++ {
+		logger.Info("Creating set of txs with nonce %d and %d", startingNonceA+uint64(i), startingNonceB+uint64(i))
+		txA, txB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, startingNonceA+uint64(i), TestAccountB, startingNonceB+uint64(i), transferedAmount, TokenABI, BridgeABI)
+		txs_A = append(txs_A, txA)
+		txs_B = append(txs_B, txB)
+		require.NoError(t, err)
+		require.NotNil(t, txA)
+		require.NotNil(t, txB)
+		txOutOfGasA, txOutOfGasB, err := helpers.SendFailingBridgeTxOutOfGasWithNonce(t, TestAccountA, startingNonceA+uint64(i+1), TestAccountB, startingNonceB+uint64(i+1), transferedAmount, TokenABI, BridgeABI)
+		txs_OutOfGasA = append(txs_OutOfGasA, txOutOfGasA)
+		txs_OutOfGasB = append(txs_OutOfGasB, txOutOfGasB)
+		require.NoError(t, err)
+		require.NotNil(t, txOutOfGasA)
+		require.NotNil(t, txOutOfGasB)
+		time.Sleep(delay)
+	}
+
+	// check the txs
+	logger.Info("Waiting 30s until we check the txs...")
+	time.Sleep(30 * time.Second)
+	for _, tx := range txs_A {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+
+	}
+	for _, tx := range txs_B {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+	}
+	// txs with wrong nonce should not be processed
+	for _, tx := range txs_OutOfGasA {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.Nil(t, receipt)
+		require.Error(t, err)
+	}
+	for _, tx := range txs_OutOfGasB {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.Nil(t, receipt)
+		require.Error(t, err)
+	}
+
+	// check balances after txs
+	balanceAAfter, err := TestAccountA.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+	require.NotNil(t, balanceAAfter)
+	balanceBAfter, err := TestAccountB.GetTokensBalance(ctx, tokenAddress, TokenABI)
+	require.NoError(t, err)
+	require.NotNil(t, balanceBAfter)
+	// we use here again numOfTxs/2 because we sent only half of the txs with the correct nonce.
+	expectedSentAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs/2))
+	expectedBalanceA := new(big.Int).Sub(initialBalanceA, expectedSentAmount)
+	expectedBalanceB := new(big.Int).Add(initialBalanceB, expectedSentAmount)
+	require.Equal(t, expectedBalanceA, balanceAAfter)
+	require.Equal(t, expectedBalanceB, balanceBAfter)
+}
+
+/*
+TestStressPartiallyFailingBridgeFromMultipleAccounts will send a total of numOfTxs from multiple accounts and half of them with out of gas error.
+It will then check if the txs with the out of gas error are not processed and the txs with the correct nonces are processed.
+It will also check if the balances are correct.
+*/
+func TestStressPartiallyFailingBridgeFromMultipleAccounts(t *testing.T) {
+	ctx := t.Context()
+	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
+	bridgeAddress := configs.Values.L2.Contracts[configs.ContractNameBridge].Address
+
+	//spam x nr of accounts on both rollups that will have tokens 
+	accountsOnRollupA := make([]*accounts.Account, numOfAccountsForMultipleTxs)
+	accountsOnRollupB := make([]*accounts.Account, numOfAccountsForMultipleTxs)
+	for i := range numOfAccountsForMultipleTxs {
+		pk, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		pkHex := hex.EncodeToString(crypto.FromECDSA(pk))
+		accountsOnRollupA[i], err = accounts.NewRollupAccount(pkHex, TestRollupA)
+		require.NoError(t, err)
+		accountsOnRollupB[i], err = accounts.NewRollupAccount(pkHex, TestRollupB)
+		require.NoError(t, err)
+	}
+
+	// spam x nr of accounts on rollup A that will NOT have tokens 
+	// intentions here are to mix transactions from this accounts with transactions from accounts on rollup A that will have tokens
+	// in this way we have a mix of failing tx and successfull txs 
+	accountsOnRollupAWithoutTokens := make([]*accounts.Account, numOfAccountsForMultipleTxs)
+	accountsOnRollupBWithoutTokens := make([]*accounts.Account, numOfAccountsForMultipleTxs)
+	for i := range numOfAccountsForMultipleTxs {
+		pk, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		pkHex := hex.EncodeToString(crypto.FromECDSA(pk))
+		accountsOnRollupAWithoutTokens[i], err = accounts.NewRollupAccount(pkHex, TestRollupA)
+		require.NoError(t, err)
+		accountsOnRollupBWithoutTokens[i], err = accounts.NewRollupAccount(pkHex, TestRollupB)
+		require.NoError(t, err)
+	}
+
+	//distribute 0.1 eth to all accounts for gas
+	logger.Info("Distributing 0.1 eth to all accounts...")
+	err := transactions.DistributeEth(ctx, TestAccountA, accountsOnRollupA, big.NewInt(100000000000000000))
+	require.NoError(t, err)
+	err = transactions.DistributeEth(ctx, TestAccountB, accountsOnRollupB, big.NewInt(100000000000000000))
+	require.NoError(t, err)
+	err = transactions.DistributeEth(ctx, TestAccountA, accountsOnRollupAWithoutTokens, big.NewInt(100000000000000000))
+	require.NoError(t, err)
+	err = transactions.DistributeEth(ctx, TestAccountB, accountsOnRollupBWithoutTokens, big.NewInt(100000000000000000))
+	require.NoError(t, err)
+
+	// get needed mint amount
+	transferredAmount := big.NewInt(1000000000000000000)                                         // 1 token
+	mintedAmount := new(big.Int).Mul(transferredAmount, big.NewInt(numOfTxsForMultipleAccounts)) // enough to send all txs
+
+	// mint tokens for all accounts
+	logger.Info("Minting tokens for all accounts on rollup A...")
+	for _, acc := range accountsOnRollupA {
+		tx, hash, err := helpers.SendMintTx(t, acc, mintedAmount, TokenABI)
+		require.NoError(t, err)
+		require.NotNil(t, tx)
+		require.NotNil(t, hash)
+	}
+
+	// approve tokens for the bridge contract
+	logger.Info("Approving tokens for the bridge contract...")
+	for _, acc := range accountsOnRollupA {
+		_, _, err := helpers.ApproveTokens(t, acc, bridgeAddress, TokenABI)
+		require.NoError(t, err)
+	}
+	// need approval for this accounts too because we want to fail with insuficient funds error 
+	for _, acc := range accountsOnRollupAWithoutTokens {
+		_, _, err := helpers.ApproveTokens(t, acc, bridgeAddress, TokenABI)
+		require.NoError(t, err)
+	}
+
+	// nonces
+	var noncesA []uint64
+	var noncesB []uint64
+	var noncesAWithoutTokens []uint64
+	var noncesBWithoutTokens []uint64
+	for i := 0; i < numOfAccountsForMultipleTxs; i++ {
+		// get nonce for both accounts
+		nonceA, err := accountsOnRollupA[i].GetNonce(ctx)
+		noncesA = append(noncesA, nonceA)
+		require.NoError(t, err)
+		nonceB, err := accountsOnRollupB[i].GetNonce(ctx)
+		noncesB = append(noncesB, nonceB)
+		require.NoError(t, err)
+		nonceAWithoutTokens, err := accountsOnRollupAWithoutTokens[i].GetNonce(ctx)
+		noncesAWithoutTokens = append(noncesAWithoutTokens, nonceAWithoutTokens)
+		require.NoError(t, err)
+		nonceBWithoutTokens, err := accountsOnRollupBWithoutTokens[i].GetNonce(ctx)
+		noncesBWithoutTokens = append(noncesBWithoutTokens, nonceBWithoutTokens)
+		require.NoError(t, err)
+	}
+
+	// send bridge txs
+	var txs_A []*types.Transaction
+	var txs_B []*types.Transaction
+	var txs_AWithoutTokens []*types.Transaction
+	var txs_BWithoutTokens []*types.Transaction
+	// for each account on A
+	for i := range accountsOnRollupA {
+		// for each tx to be sent
+		for j := 0; j < numOfTxsForMultipleAccounts; j++ {
+			// build bridge txs with different nonces
+			txA, txB, err := helpers.SendBridgeTxWithNonce(t, accountsOnRollupA[i], noncesA[i]+uint64(j), accountsOnRollupB[i], noncesB[i]+uint64(j), transferredAmount, TokenABI, BridgeABI)
+			require.NoError(t, err)
+			require.NotNil(t, txA)
+			require.NotNil(t, txB)
+			txs_A = append(txs_A, txA)
+			txs_B = append(txs_B, txB)
+			txAWithoutTokens, txBWithoutTokens, err := helpers.SendBridgeTxWithNonce(t, accountsOnRollupAWithoutTokens[i], noncesAWithoutTokens[i], accountsOnRollupBWithoutTokens[i], noncesBWithoutTokens[i], transferredAmount, TokenABI, BridgeABI)
+			require.NoError(t, err)
+			require.NotNil(t, txAWithoutTokens)
+			require.NotNil(t, txBWithoutTokens)
+			txs_AWithoutTokens = append(txs_AWithoutTokens, txAWithoutTokens)
+			txs_BWithoutTokens = append(txs_BWithoutTokens, txBWithoutTokens)
+			time.Sleep(delay)
+		}
+	}
+
+	// wait 30s until we check the txs
+	logger.Info("Waiting 30s until we check the txs...")
+	time.Sleep(30 * time.Second)
+	// check if all txs are successful
+	for _, tx := range txs_A {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+	for _, tx := range txs_B {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %s", tx.Hash().Hex())
+	}
+
+	// check if all txs with not enough funds are not processed
+	for _, tx := range txs_AWithoutTokens {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupA)
+		require.Nil(t, receipt)
+		require.Error(t, err)
+	}
+	for _, tx := range txs_BWithoutTokens {
+		_, receipt, err := transactions.GetTransactionDetails(ctx, tx.Hash(), TestRollupB)
+		require.Nil(t, receipt)
+		require.Error(t, err)
+	}
+
+	// expected balances
+	for _, acc := range accountsOnRollupA {
+		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
+		require.NoError(t, err)
+		require.Equal(t, 0, balance.Cmp(big.NewInt(0))) // on rollup A, all tokens should be sent to rollup B
+	}
+	for _, acc := range accountsOnRollupB {
+		balance, err := acc.GetTokensBalance(ctx, tokenAddress, TokenABI)
+		require.NoError(t, err)
+		expected := new(big.Int).Mul(transferredAmount, big.NewInt(numOfTxsForMultipleAccounts))
+		require.Equal(t, 0, balance.Cmp(expected)) // on rollup B, all tokens sent from A should be received
+	}
+}
