@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/compose-network/dome/internal/accounts"
-	"github.com/compose-network/dome/internal/transactions"
 	"github.com/compose-network/dome/internal/logger"
+	"github.com/compose-network/dome/internal/transactions"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -44,18 +44,15 @@ func CreateSmartAccount(ctx context.Context, ac *accounts.Account, data *InitDat
 	// Encode initialize function call
 	// First, we need to construct the initialize function ABI
 	// Note: _rootValidator is bytes (21 bytes: 1 byte type prefix + 20 byte validator address)
-	initializeABI := `[{"type":"function","name":"initialize","inputs":[{"name":"_rootValidator","type":"bytes"},{"name":"hook","type":"address"},{"name":"validatorData","type":"bytes"},{"name":"hookData","type":"bytes"},{"name":"initConfig","type":"bytes[]"}]}]`
+	initializeABI := `[{"type":"function","name":"initialize","inputs":[{"name":"_rootValidator","type":"bytes21"},{"name":"hook","type":"address"},{"name":"validatorData","type":"bytes"},{"name":"hookData","type":"bytes"},{"name":"initConfig","type":"bytes[]"}]}]`
 	initializeABIParsed, err := abi.JSON(strings.NewReader(initializeABI))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse initialize ABI: %w", err)
 	}
 
-	// Convert [21]byte to []byte for ABI encoding
-	rootValidatorBytes := data.RootValidator[:]
-
 	// Pack the initialize function call
 	initCalldata, err := initializeABIParsed.Pack("initialize",
-		rootValidatorBytes,
+		data.RootValidator,
 		data.Hook,
 		data.ValidatorData,
 		data.HookData,
@@ -118,8 +115,8 @@ func CreateSmartAccount(ctx context.Context, ac *accounts.Account, data *InitDat
 	// Create transaction
 	transactionDetails := transactions.TransactionDetails{
 		To:        factoryAddress,
-		Value:     big.NewInt(0), // Can be modified if payment is needed
-		Gas:       2000000,       // Adjust gas limit as needed
+		Value:     big.NewInt(0), // 1 ETH
+		Gas:       9000000,       // Adjust gas limit as needed
 		GasTipCap: big.NewInt(1000000000),
 		GasFeeCap: big.NewInt(20000000000),
 		Data:      createAccountCalldata,
