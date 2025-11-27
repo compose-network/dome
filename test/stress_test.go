@@ -512,7 +512,7 @@ It will also check if the balances are correct.
 func TestStressFromSameAccountHalfWrongNonce(t *testing.T) {
 	ctx := t.Context()
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
-	
+
 	transferedAmount := big.NewInt(500000000000000000)                       // 0.5 tokens
 	mintedAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs)) // enough to send all txs
 
@@ -548,7 +548,10 @@ func TestStressFromSameAccountHalfWrongNonce(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, txA)
 		require.NotNil(t, txB)
-		txWrongNonceA, txWrongNonceB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, startingNonceA+uint64(i)-1, TestAccountB, startingNonceB+uint64(i)-1, transferedAmount, TokenABI, BridgeABI)
+		// Wrong nonces: use nonces BELOW startingNonce (definitely stale, no overlap with correct nonces)
+		wrongNonceA := startingNonceA - 1 - uint64(i)
+		wrongNonceB := startingNonceB - 1 - uint64(i)
+		txWrongNonceA, txWrongNonceB, err := helpers.SendBridgeTxWithNonce(t, TestAccountA, wrongNonceA, TestAccountB, wrongNonceB, transferedAmount, TokenABI, BridgeABI)
 		txs_wrongNonceA = append(txs_wrongNonceA, txWrongNonceA)
 		txs_wrongNonceB = append(txs_wrongNonceB, txWrongNonceB)
 		require.NoError(t, err)
@@ -608,7 +611,7 @@ It will also check if the balances are correct.
 func TestStressFromSameAccountHalfOutOfGas(t *testing.T) {
 	ctx := t.Context()
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
-	
+
 	transferedAmount := big.NewInt(500000000000000000)                       // 0.5 tokens
 	mintedAmount := new(big.Int).Mul(transferedAmount, big.NewInt(numOfTxs)) // enough to send all txs
 
@@ -706,7 +709,7 @@ func TestStressPartiallyFailingBridgeFromMultipleAccounts(t *testing.T) {
 	tokenAddress := configs.Values.L2.Contracts[configs.ContractNameToken].Address
 	bridgeAddress := configs.Values.L2.Contracts[configs.ContractNameBridge].Address
 
-	//spam x nr of accounts on both rollups that will have tokens 
+	//spam x nr of accounts on both rollups that will have tokens
 	accountsOnRollupA := make([]*accounts.Account, numOfAccountsForMultipleTxs)
 	accountsOnRollupB := make([]*accounts.Account, numOfAccountsForMultipleTxs)
 	for i := range numOfAccountsForMultipleTxs {
@@ -719,9 +722,9 @@ func TestStressPartiallyFailingBridgeFromMultipleAccounts(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// spam x nr of accounts on rollup A that will NOT have tokens 
+	// spam x nr of accounts on rollup A that will NOT have tokens
 	// intentions here are to mix transactions from this accounts with transactions from accounts on rollup A that will have tokens
-	// in this way we have a mix of failing tx and successfull txs 
+	// in this way we have a mix of failing tx and successfull txs
 	accountsOnRollupAWithoutTokens := make([]*accounts.Account, numOfAccountsForMultipleTxs)
 	accountsOnRollupBWithoutTokens := make([]*accounts.Account, numOfAccountsForMultipleTxs)
 	for i := range numOfAccountsForMultipleTxs {
@@ -764,7 +767,7 @@ func TestStressPartiallyFailingBridgeFromMultipleAccounts(t *testing.T) {
 		_, _, err := helpers.ApproveTokens(t, acc, bridgeAddress, TokenABI)
 		require.NoError(t, err)
 	}
-	// need approval for this accounts too because we want to fail with insuficient funds error 
+	// need approval for this accounts too because we want to fail with insuficient funds error
 	for _, acc := range accountsOnRollupAWithoutTokens {
 		_, _, err := helpers.ApproveTokens(t, acc, bridgeAddress, TokenABI)
 		require.NoError(t, err)
