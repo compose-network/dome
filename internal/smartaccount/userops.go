@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compose-network/dome/internal/accounts"
+	"github.com/compose-network/dome/internal/helpers"
 	"github.com/compose-network/dome/internal/logger"
 	"github.com/compose-network/dome/internal/transactions"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -35,16 +36,21 @@ type UserOp struct {
 // The UserOp's Signature field should be empty/nil when calling this function.
 // After calling, you can set userOp.Signature = signature to add it to the struct.
 func SignUserOp(userOp *UserOp, ac *accounts.Account) ([]byte, error) {
-	// Define ABI for packing a single UserOp tuple (without signature)
-	userOpABI := `[{"type":"function","name":"packUserOp","inputs":[{"name":"op","type":"tuple","components":[{"name":"sender","type":"address"},{"name":"nonce","type":"uint256"},{"name":"initCode","type":"bytes"},{"name":"callData","type":"bytes"},{"name":"accountGasLimits","type":"bytes32"},{"name":"preVerificationGas","type":"uint256"},{"name":"gasFees","type":"bytes32"},{"name":"paymasterAndData","type":"bytes"},{"name":"signature","type":"bytes"}]}],"outputs":[{"name":"","type":"bytes"}]}]`
-
-	packABI, err := abi.JSON(strings.NewReader(userOpABI))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse userOp ABI: %w", err)
+	// Use abi.Arguments to pack the tuple components directly
+	// This is equivalent to packing a tuple in Solidity
+	args := abi.Arguments{
+		{Name: "sender", Type: abi.Type{T: abi.AddressTy, Size: 20}},
+		{Name: "nonce", Type: abi.Type{T: abi.UintTy, Size: 256}},
+		{Name: "initCode", Type: abi.Type{T: abi.BytesTy}},
+		{Name: "callData", Type: abi.Type{T: abi.BytesTy}},
+		{Name: "accountGasLimits", Type: abi.Type{T: abi.FixedBytesTy, Size: 32}},
+		{Name: "preVerificationGas", Type: abi.Type{T: abi.UintTy, Size: 256}},
+		{Name: "gasFees", Type: abi.Type{T: abi.FixedBytesTy, Size: 32}},
+		{Name: "paymasterAndData", Type: abi.Type{T: abi.BytesTy}},
+		{Name: "signature", Type: abi.Type{T: abi.BytesTy}},
 	}
 
-	// Pack the userOp tuple (with empty signature for signing)
-	userOpTuple := []interface{}{
+	pack, err := args.Pack(
 		userOp.Sender,
 		userOp.Nonce,
 		userOp.InitCode,
@@ -54,9 +60,7 @@ func SignUserOp(userOp *UserOp, ac *accounts.Account) ([]byte, error) {
 		userOp.GasFees,
 		userOp.PaymasterAndData,
 		[]byte{}, // Empty signature when signing
-	}
-
-	pack, err := packABI.Pack("packUserOp", userOpTuple)
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pack user op: %w", err)
 	}
@@ -81,27 +85,41 @@ func SendUserOps(ctx context.Context, ac *accounts.Account, ops []UserOp, benefi
 	}
 
 	// Convert UserOp structs to tuples for ABI encoding
-	opsTuples := make([]interface{}, len(ops))
+	// For tuple[], go-ethereum expects a slice of structs matching the tuple structure
+	type userOpTuple struct {
+		Sender             common.Address
+		Nonce              *big.Int
+		InitCode           []byte
+		CallData           []byte
+		AccountGasLimits   [32]byte
+		PreVerificationGas *big.Int
+		GasFees            [32]byte
+		PaymasterAndData   []byte
+		Signature          []byte
+	}
+
+	opsTuples := make([]userOpTuple, len(ops))
 	for i, op := range ops {
 		// Use empty signature if nil (though it should be set by this point)
 		signature := op.Signature
 		if signature == nil {
 			signature = []byte{}
 		}
-		opsTuples[i] = []interface{}{
-			op.Sender,
-			op.Nonce,
-			op.InitCode,
-			op.CallData,
-			op.AccountGasLimits,
-			op.PreVerificationGas,
-			op.GasFees,
-			op.PaymasterAndData,
-			signature,
+		opsTuples[i] = userOpTuple{
+			Sender:             op.Sender,
+			Nonce:              op.Nonce,
+			InitCode:           op.InitCode,
+			CallData:           op.CallData,
+			AccountGasLimits:   op.AccountGasLimits,
+			PreVerificationGas: op.PreVerificationGas,
+			GasFees:            op.GasFees,
+			PaymasterAndData:   op.PaymasterAndData,
+			Signature:          signature,
 		}
 	}
 
 	// Pack the handleOps function call
+	// For tuple[], we need to pass the slice of structs
 	handleOpsCalldata, err := epABI.Pack("handleOps", opsTuples, beneficiary)
 	if err != nil {
 		return nil, common.Hash{}, fmt.Errorf("failed to pack handleOps: %w", err)
@@ -131,4 +149,68 @@ func SendUserOps(ctx context.Context, ac *accounts.Account, ops []UserOp, benefi
 	logger.Info("HandleOps transaction sent: %s", hash.Hex())
 
 	return tx, hash, nil
+}
+
+func HashUserOp(userOp *UserOp, entryPoint common.Address, chainId *big.Int) common.Hash {
+	// Hash dynamic fields
+	initCodeHash := crypto.Keccak256Hash(userOp.InitCode)
+	callDataHash := crypto.Keccak256Hash(userOp.CallData)
+	paymasterHash := crypto.Keccak256Hash(userOp.PaymasterAndData)
+
+	// Hash the userOp struct
+	encoded, err := helpers.EncodeLikeEthers(
+		[]string{
+			"bytes32", "bytes32", "bytes32",
+			"address", "uint256",
+			"bytes32", "uint256", "bytes32",
+		},
+		[]interface{}{
+			initCodeHash,
+			callDataHash,
+			paymasterHash,
+			userOp.Sender,
+			userOp.Nonce,
+			userOp.AccountGasLimits,
+			userOp.PreVerificationGas,
+			userOp.GasFees,
+		},
+	)
+	if err != nil {
+		return common.Hash{}
+	}
+	userOpStruct := crypto.Keccak256Hash(encoded)
+
+	// Final hash = EIP712
+	encodedDomain, err := helpers.EncodeLikeEthers(
+		[]string{"bytes32", "address", "uint256"},
+		[]interface{}{
+			crypto.Keccak256Hash([]byte("EntryPoint")),
+			entryPoint,
+			chainId,
+		},
+	)
+	if err != nil {
+		return common.Hash{}
+	}
+	domainSeparator := crypto.Keccak256Hash(encodedDomain)
+
+	return crypto.Keccak256Hash(
+		[]byte("\x19\x01"),
+		domainSeparator.Bytes(),
+		userOpStruct.Bytes(),
+	)
+}
+
+func SignUserOp2(userOp *UserOp, entryPoint common.Address, chainId *big.Int, ac *accounts.Account) []byte {
+	hash := HashUserOp(userOp, entryPoint, chainId)
+
+	sig, err := crypto.Sign(hash.Bytes(), ac.GetPrivateKey())
+	if err != nil {
+		panic(err)
+	}
+
+	// Fix v: convert 0/1 → 27/28
+	sig[64] += 27
+
+	return sig
 }

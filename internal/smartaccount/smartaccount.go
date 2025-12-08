@@ -142,6 +142,6 @@ func CreateSmartAccount(ctx context.Context, ac *accounts.Account, data *InitDat
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return nil, fmt.Errorf("createAccount transaction failed with status: %d", receipt.Status)
 	}
-
+	logger.Info("Smart account created successfully at address: %s", predictedAddress.Hex())
 	return &SmartAccount{address: predictedAddress}, nil
 }
