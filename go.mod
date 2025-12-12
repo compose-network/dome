@@ -3,6 +3,7 @@ module github.com/compose-network/dome
 go 1.25
 
 require (
+	github.com/compose-network/specs/compose v0.0.0-20251208132907-604b8a84d87b
 	github.com/ethereum/go-ethereum v1.16.5
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.10
