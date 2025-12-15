@@ -6,7 +6,7 @@ import (
 
 	"github.com/compose-network/dome/internal/accounts"
 	"github.com/compose-network/dome/internal/logger"
-	"github.com/compose-network/dome/pkg/rollupv1"
+	composeproto "github.com/compose-network/specs/compose/proto"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"google.golang.org/protobuf/proto"
@@ -15,26 +15,22 @@ import (
 const sendTxRPCMethod = "eth_sendXTransaction"
 
 func CreateCrossTxRequestMsg(ctx context.Context, ac1 *accounts.Account, ac2 *accounts.Account, signedTx1 []byte, signedTx2 []byte) ([]byte, error) {
-	xtRequest := &rollupv1.XTRequest{
-		Transactions: []*rollupv1.TransactionRequest{
+	xtRequest := &composeproto.XTRequest{
+		TransactionRequests: []*composeproto.TransactionRequest{
 			{
-				ChainId: ac1.GetRollup().ChainID().Bytes(),
-				Transaction: [][]byte{
-					signedTx1,
-				},
+				ChainId:     ac1.GetRollup().ChainID().Uint64(),
+				Transaction: [][]byte{signedTx1},
 			},
 			{
-				ChainId: ac2.GetRollup().ChainID().Bytes(),
-				Transaction: [][]byte{
-					signedTx2,
-				},
+				ChainId:     ac2.GetRollup().ChainID().Uint64(),
+				Transaction: [][]byte{signedTx2},
 			},
 		},
 	}
 
-	spMsg := &rollupv1.Message{
+	spMsg := &composeproto.Message{
 		SenderId: "client",
-		Payload: &rollupv1.Message_XtRequest{
+		Payload: &composeproto.Message_XtRequest{
 			XtRequest: xtRequest,
 		},
 	}
