@@ -16,18 +16,14 @@ const sendTxRPCMethod = "eth_sendXTransaction"
 
 func CreateCrossTxRequestMsg(ctx context.Context, ac1 *accounts.Account, ac2 *accounts.Account, signedTx1 []byte, signedTx2 []byte) ([]byte, error) {
 	xtRequest := &composeproto.XTRequest{
-		Transactions: []*composeproto.TransactionRequest{
+		TransactionRequests: []*composeproto.TransactionRequest{
 			{
-				ChainId: ac1.GetRollup().ChainID().Bytes(),
-				Transaction: [][]byte{
-					signedTx1,
-				},
+				ChainId:     ac1.GetRollup().ChainID().Uint64(),
+				Transaction: [][]byte{signedTx1},
 			},
 			{
-				ChainId: ac2.GetRollup().ChainID().Bytes(),
-				Transaction: [][]byte{
-					signedTx2,
-				},
+				ChainId:     ac2.GetRollup().ChainID().Uint64(),
+				Transaction: [][]byte{signedTx2},
 			},
 		},
 	}
